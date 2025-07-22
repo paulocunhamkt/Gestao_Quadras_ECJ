@@ -1,1 +1,19 @@
-{}
+{
+  "isAuthenticated": true,
+  "quadras": [
+    {
+      "id": 1,
+      "nome": "Campo de Futebol 1",
+      "modalidade": "Campo de Futebol",
+      "valorHora": 100,
+      "ativa": true
+    },
+    {
+      "nome": "Quadra de Futsal 1",
+      "modalidade": "Quadra de Futsal",
+      "valorHora": 50,
+      "ativa": true,
+      "id": 2
+    }
+  ]
+}

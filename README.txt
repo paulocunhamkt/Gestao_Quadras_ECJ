@@ -8,6 +8,8 @@ This ZIP file contains the exported React component from your Hatch canvas.
 - index.html: Ready-to-run HTML file with fallback inline code and data
 - storedState.json: Initial state data
 
+- assets/: Directory containing 1 image asset(s)
+  - assets/QnQ2IRKmq0zfR25_j1Nkf.png
 
 ## Quick Start:
 1. **Immediate Preview**:
@@ -37,4 +39,4 @@ The exported component includes support for Hatch's `useStoredState` hook:
 
 The `index.html` file provides a complete Hatch-compatible runtime environment that works both when served from a web server (using external files) and when opened directly as file:// URLs (using inline fallbacks).
 
-Generated on: 22/07/2025, 18:56:44
+Generated on: 22/07/2025, 20:27:09

@@ -1,8 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, DollarSign, Plus, Edit, Trash2, Save, X, Search, Filter } from 'lucide-react';
+import { Calendar, Clock, Users, DollarSign, Plus, Edit, Trash2, Save, X, Search, Filter, Menu, Home, CalendarDays, Building, UserCheck, Printer, LogOut, Shield, Eye, EyeOff, Settings, CreditCard, TrendingUp, AlertCircle, CheckCircle, FileText, BarChart3, PieChart } from 'lucide-react';
 
 const QuadraManagementSystem = () => {
   const { useStoredState } = hatch;
+  
+  // Sistema de Autenticação
+  const [isAuthenticated, setIsAuthenticated] = useStoredState('isAuthenticated', false);
+  const [usuarioLogado, setUsuarioLogado] = useStoredState('usuarioLogado', null);
+  const [showLogin, setShowLogin] = useState(!isAuthenticated);
+  const [loginForm, setLoginForm] = useState({ usuario: '', senha: '' });
+  const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Usuários administrativos (gerenciáveis)
+  const [usuariosAdmin, setUsuariosAdmin] = useStoredState('usuariosAdmin', [
+    { id: 1, usuario: 'admin', senha: 'jurema2025', nome: 'Administrador', cargo: 'Administrador Geral' },
+    { id: 2, usuario: 'gerente', senha: 'gestao123', nome: 'Gerente', cargo: 'Gerente de Operações' },
+    { id: 3, usuario: 'secretario', senha: 'quadras456', nome: 'Secretário', cargo: 'Secretário do Clube' }
+  ]);
   
   // Estados para dados
   const [quadras, setQuadras] = useStoredState('quadras', [
@@ -17,6 +32,10 @@ const QuadraManagementSystem = () => {
   
   const [reservas, setReservas] = useStoredState('reservas', []);
   
+  // Estados para Financeiro
+  const [faturamentos, setFaturamentos] = useStoredState('faturamentos', []);
+  const [recebimentos, setRecebimentos] = useStoredState('recebimentos', []);
+  
   // Estados da interface
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +44,7 @@ const QuadraManagementSystem = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroData, setFiltroData] = useState('');
   const [mesImpressao, setMesImpressao] = useState(new Date().toISOString().slice(0, 7));
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Formulários
   const [formQuadra, setFormQuadra] = useState({ nome: '', modalidade: '', valorHora: '', ativa: true });
@@ -37,6 +57,30 @@ const QuadraManagementSystem = () => {
     horaFim: '',
     valor: '',
     status: 'Confirmada',
+    observacoes: ''
+  });
+  const [formAdmin, setFormAdmin] = useState({ nome: '', usuario: '', senha: '', cargo: '' });
+  const [formFaturamento, setFormFaturamento] = useState({
+    data: '',
+    cliente: '',
+    mesLocacao: '',
+    hora: '',
+    tipoQuadra: '',
+    tipoLocacao: '',
+    reciboPagamento: '',
+    dataLocacao: '',
+    valor: '',
+    formaPagamento: '',
+    valorRecebido: '',
+    valorEmAberto: '',
+    valorRealRecebido: '',
+    observacoes: ''
+  });
+  const [formRecebimento, setFormRecebimento] = useState({
+    faturamentoId: '',
+    data: '',
+    valor: '',
+    formaPagamento: '',
     observacoes: ''
   });
 
@@ -72,6 +116,118 @@ const QuadraManagementSystem = () => {
   const excluirQuadra = (id) => {
     if (confirm('Tem certeza que deseja excluir esta quadra?')) {
       setQuadras(quadras.filter(q => q.id !== id));
+    }
+  };
+
+  // Funções para Financeiro
+  const adicionarFaturamento = () => {
+    const valorTotal = parseFloat(formFaturamento.valor) || 0;
+    const valorRecebido = parseFloat(formFaturamento.valorRecebido) || 0;
+    const valorEmAberto = valorTotal - valorRecebido;
+
+    if (editingItem) {
+      setFaturamentos(faturamentos.map(f => f.id === editingItem.id ? 
+        { 
+          ...formFaturamento, 
+          id: editingItem.id,
+          valor: valorTotal,
+          valorRecebido: valorRecebido,
+          valorEmAberto: valorEmAberto,
+          valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido
+        } : f
+      ));
+    } else {
+      const novoFaturamento = {
+        id: Date.now(),
+        ...formFaturamento,
+        valor: valorTotal,
+        valorRecebido: valorRecebido,
+        valorEmAberto: valorEmAberto,
+        valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido,
+        status: valorEmAberto > 0 ? 'Em Aberto' : 'Pago'
+      };
+      setFaturamentos([...faturamentos, novoFaturamento]);
+    }
+    fecharModal();
+  };
+
+  const editarFaturamento = (faturamento) => {
+    setEditingItem(faturamento);
+    setFormFaturamento({
+      data: faturamento.data,
+      cliente: faturamento.cliente,
+      mesLocacao: faturamento.mesLocacao,
+      hora: faturamento.hora,
+      tipoQuadra: faturamento.tipoQuadra,
+      tipoLocacao: faturamento.tipoLocacao,
+      reciboPagamento: faturamento.reciboPagamento,
+      dataLocacao: faturamento.dataLocacao,
+      valor: faturamento.valor.toString(),
+      formaPagamento: faturamento.formaPagamento,
+      valorRecebido: faturamento.valorRecebido.toString(),
+      valorEmAberto: faturamento.valorEmAberto.toString(),
+      valorRealRecebido: faturamento.valorRealRecebido.toString(),
+      observacoes: faturamento.observacoes || ''
+    });
+    setModalType('faturamento');
+    setShowModal(true);
+  };
+
+  const excluirFaturamento = (id) => {
+    if (confirm('Tem certeza que deseja excluir este faturamento?')) {
+      setFaturamentos(faturamentos.filter(f => f.id !== id));
+      // Remover recebimentos relacionados
+      setRecebimentos(recebimentos.filter(r => r.faturamentoId !== id));
+    }
+  };
+
+  const adicionarRecebimento = () => {
+    const novoRecebimento = {
+      id: Date.now(),
+      ...formRecebimento,
+      faturamentoId: parseInt(formRecebimento.faturamentoId),
+      valor: parseFloat(formRecebimento.valor)
+    };
+    
+    setRecebimentos([...recebimentos, novoRecebimento]);
+    
+    // Atualizar faturamento
+    setFaturamentos(faturamentos.map(f => {
+      if (f.id === parseInt(formRecebimento.faturamentoId)) {
+        const novoValorRecebido = f.valorRealRecebido + parseFloat(formRecebimento.valor);
+        const novoValorEmAberto = f.valor - novoValorRecebido;
+        return {
+          ...f,
+          valorRealRecebido: novoValorRecebido,
+          valorEmAberto: Math.max(0, novoValorEmAberto),
+          status: novoValorEmAberto <= 0 ? 'Pago' : 'Em Aberto'
+        };
+      }
+      return f;
+    }));
+    
+    fecharModal();
+  };
+
+  const excluirRecebimento = (id) => {
+    const recebimento = recebimentos.find(r => r.id === id);
+    if (recebimento && confirm('Tem certeza que deseja excluir este recebimento?')) {
+      setRecebimentos(recebimentos.filter(r => r.id !== id));
+      
+      // Atualizar faturamento
+      setFaturamentos(faturamentos.map(f => {
+        if (f.id === recebimento.faturamentoId) {
+          const novoValorRecebido = f.valorRealRecebido - recebimento.valor;
+          const novoValorEmAberto = f.valor - novoValorRecebido;
+          return {
+            ...f,
+            valorRealRecebido: Math.max(0, novoValorRecebido),
+            valorEmAberto: novoValorEmAberto,
+            status: novoValorEmAberto > 0 ? 'Em Aberto' : 'Pago'
+          };
+        }
+        return f;
+      }));
     }
   };
 
@@ -161,6 +317,76 @@ const QuadraManagementSystem = () => {
     }
   };
 
+  // Funções para Administradores
+  const adicionarAdmin = () => {
+    // Verificar se usuário já existe
+    const usuarioExiste = usuariosAdmin.find(u => u.usuario === formAdmin.usuario && (!editingItem || u.id !== editingItem.id));
+    if (usuarioExiste) {
+      alert('Este nome de usuário já existe!');
+      return;
+    }
+
+    if (editingItem) {
+      setUsuariosAdmin(usuariosAdmin.map(u => u.id === editingItem.id ? 
+        { ...formAdmin, id: editingItem.id } : u
+      ));
+    } else {
+      const novoAdmin = {
+        id: Date.now(),
+        ...formAdmin
+      };
+      setUsuariosAdmin([...usuariosAdmin, novoAdmin]);
+    }
+    fecharModal();
+  };
+
+  const editarAdmin = (admin) => {
+    setEditingItem(admin);
+    setFormAdmin({
+      nome: admin.nome,
+      usuario: admin.usuario,
+      senha: admin.senha,
+      cargo: admin.cargo
+    });
+    setModalType('admin');
+    setShowModal(true);
+  };
+
+  const excluirAdmin = (id) => {
+    if (usuariosAdmin.length <= 1) {
+      alert('Não é possível excluir o último administrador!');
+      return;
+    }
+    if (confirm('Tem certeza que deseja excluir este administrador?')) {
+      setUsuariosAdmin(usuariosAdmin.filter(u => u.id !== id));
+    }
+  };
+
+  // Funções de Autenticação
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const usuario = usuariosAdmin.find(
+      u => u.usuario === loginForm.usuario && u.senha === loginForm.senha
+    );
+    
+    if (usuario) {
+      setIsAuthenticated(true);
+      setUsuarioLogado(usuario);
+      setShowLogin(false);
+      setLoginError('');
+      setLoginForm({ usuario: '', senha: '' });
+    } else {
+      setLoginError('Usuário ou senha incorretos');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUsuarioLogado(null);
+    setShowLogin(true);
+    setActiveTab('dashboard');
+  };
+
   const fecharModal = () => {
     setShowModal(false);
     setModalType('');
@@ -175,6 +401,30 @@ const QuadraManagementSystem = () => {
       horaFim: '',
       valor: '',
       status: 'Confirmada',
+      observacoes: ''
+    });
+    setFormAdmin({ nome: '', usuario: '', senha: '', cargo: '' });
+    setFormFaturamento({
+      data: '',
+      cliente: '',
+      mesLocacao: '',
+      hora: '',
+      tipoQuadra: '',
+      tipoLocacao: '',
+      reciboPagamento: '',
+      dataLocacao: '',
+      valor: '',
+      formaPagamento: '',
+      valorRecebido: '',
+      valorEmAberto: '',
+      valorRealRecebido: '',
+      observacoes: ''
+    });
+    setFormRecebimento({
+      faturamentoId: '',
+      data: '',
+      valor: '',
+      formaPagamento: '',
       observacoes: ''
     });
   };
@@ -196,6 +446,115 @@ const QuadraManagementSystem = () => {
     const matchData = !filtroData || reserva.data === filtroData;
     return matchSearch && matchData;
   });
+
+  // Configuração dos ícones para cada aba
+  const tabIcons = {
+    dashboard: Home,
+    reservas: CalendarDays,
+    quadras: Building,
+    clientes: UserCheck,
+    financeiro: CreditCard,
+    impressao: Printer,
+    admin: Settings
+  };
+
+  const tabLabels = {
+    dashboard: 'Painel',
+    reservas: 'Reservas',
+    quadras: 'Quadras',
+    clientes: 'Clientes',
+    financeiro: 'Financeiro',
+    impressao: 'Impressão',
+    admin: 'ADM'
+  };
+
+  // Se não estiver autenticado, mostrar tela de login
+  if (showLogin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <img 
+              src="assets/QnQ2IRKmq0zfR25_j1Nkf.png" 
+              alt="Esporte Clube Jurema" 
+              className="h-20 w-20 mx-auto rounded-full bg-gray-100 p-2 mb-4"
+            />
+            <h1 className="text-2xl font-bold text-green-700 mb-2">Esporte Clube Jurema</h1>
+            <p className="text-gray-600">Sistema de Gestão de Quadras</p>
+            <p className="text-sm text-gray-500 mt-1">Acesso Restrito - Administradores</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Usuário
+              </label>
+              <input
+                type="text"
+                value={loginForm.usuario}
+                onChange={(e) => setLoginForm({...loginForm, usuario: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                placeholder="Digite seu usuário"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Senha
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={loginForm.senha}
+                  onChange={(e) => setLoginForm({...loginForm, senha: e.target.value})}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Digite sua senha"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-500 hover:text-gray-700"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+            
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {loginError}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition duration-200 font-medium"
+            >
+              Entrar
+            </button>
+          </form>
+          
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Usuários Autorizados:</h3>
+            <div className="text-xs text-gray-600 space-y-1">
+              {usuariosAdmin.map(user => (
+                <div key={user.id}>• <strong>{user.usuario}</strong> - {user.cargo}</div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Entre em contato com a administração para obter as credenciais.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -257,635 +616,2146 @@ const QuadraManagementSystem = () => {
         }
       `}</style>
       <div className="w-full h-full bg-gray-50 overflow-auto">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-800">Gestão de Quadras Esportivas</h1>
-        <p className="text-gray-600">Sistema completo para controle de aluguel</p>
-      </div>
-
-      {/* Navigation */}
-      <div className="bg-white border-b">
-        <nav className="flex space-x-8 px-6">
-          {['dashboard', 'reservas', 'quadras', 'clientes', 'impressao'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`py-4 px-2 border-b-2 font-medium text-sm capitalize ${
-                activeTab === tab
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab === 'dashboard' ? 'Painel' : 
-               tab === 'impressao' ? 'Impressão' : tab}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Content */}
-      <div className="p-6">
-        {/* Dashboard */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex items-center">
-                  <Calendar className="h-8 w-8 text-blue-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Reservas Hoje</p>
-                    <p className="text-2xl font-bold text-gray-900">{reservasHoje.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex items-center">
-                  <DollarSign className="h-8 w-8 text-green-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Receita Mensal</p>
-                    <p className="text-2xl font-bold text-gray-900">R$ {receitaMensal.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex items-center">
-                  <Users className="h-8 w-8 text-purple-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Clientes</p>
-                    <p className="text-2xl font-bold text-gray-900">{clientes.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-lg shadow">
-                <div className="flex items-center">
-                  <Clock className="h-8 w-8 text-orange-500" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Quadras Ativas</p>
-                    <p className="text-2xl font-bold text-gray-900">{quadras.filter(q => q.ativa).length}</p>
-                  </div>
-                </div>
+        {/* Header Mobile */}
+        <div className="bg-gradient-to-r from-green-600 to-green-700 shadow-sm border-b px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <img 
+                src="assets/QnQ2IRKmq0zfR25_j1Nkf.png" 
+                alt="Esporte Clube Jurema" 
+                className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-white p-1"
+              />
+              <div>
+                <h1 className="text-lg md:text-2xl font-bold text-white">Esporte Clube Jurema</h1>
+                <p className="text-xs md:text-sm text-green-100 hidden sm:block">Sistema de Gestão de Quadras - Valinhos</p>
               </div>
             </div>
-
-            {/* Próximas Reservas */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b">
-                <h3 className="text-lg font-medium text-gray-900">Próximas Reservas</h3>
+            <div className="flex items-center space-x-3">
+              <div className="hidden sm:block text-right text-green-100">
+                <p className="text-sm font-medium">
+                  Olá, {usuarioLogado?.nome || 'Usuário'}!
+                </p>
+                <p className="text-xs opacity-90">
+                  {usuarioLogado?.cargo || 'Sistema Administrativo'}
+                </p>
               </div>
-              <div className="p-6">
-                {reservas.slice(0, 5).map((reserva) => {
-                  const quadra = quadras.find(q => q.id === reserva.quadraId);
-                  const cliente = clientes.find(c => c.id === reserva.clienteId);
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-green-800 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {usuarioLogado?.nome ? usuarioLogado.nome.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-green-800 hover:bg-green-900 text-white px-3 py-2 rounded-lg text-sm transition duration-200 flex items-center space-x-1"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sair</span>
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="md:hidden p-2 rounded-md text-green-100 hover:text-white hover:bg-green-800"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* Navigation Desktop */}
+        <div className="hidden md:block bg-white border-b">
+          <nav className="flex space-x-8 px-6">
+            {Object.entries(tabLabels).map(([tab, label]) => {
+              const IconComponent = tabIcons[tab];
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-4 px-2 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                    activeTab === tab
+                      ? 'border-green-500 text-green-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <IconComponent className="h-4 w-4" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Mobile Menu Overlay */}
+        {showMobileMenu && (
+          <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setShowMobileMenu(false)}>
+            <div className="bg-white w-64 h-full shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-medium">
+                    {usuarioLogado?.nome ? usuarioLogado.nome.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">{usuarioLogado?.nome || 'Usuário'}</h3>
+                    <p className="text-xs text-gray-600">{usuarioLogado?.cargo || 'Administrador'}</p>
+                  </div>
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">Menu</h2>
+              </div>
+              <nav className="p-2">
+                {Object.entries(tabLabels).map(([tab, label]) => {
+                  const IconComponent = tabIcons[tab];
                   return (
-                    <div key={reserva.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                      <div>
-                        <p className="font-medium">{quadra?.nome}</p>
-                        <p className="text-sm text-gray-600">{cliente?.nome} - {reserva.data} às {reserva.horaInicio}</p>
-                      </div>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
-                        reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {reserva.status}
-                      </span>
-                    </div>
+                    <button
+                      key={tab}
+                      onClick={() => {
+                        setActiveTab(tab);
+                        setShowMobileMenu(false);
+                      }}
+                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left ${
+                        activeTab === tab
+                          ? 'bg-green-100 text-green-600'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <IconComponent className="h-5 w-5" />
+                      <span>{label}</span>
+                    </button>
                   );
                 })}
-              </div>
+              </nav>
             </div>
           </div>
         )}
 
-        {/* Reservas */}
-        {activeTab === 'reservas' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Reservas</h2>
-              <button
-                onClick={() => {
-                  setModalType('reserva');
-                  setShowModal(true);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Nova Reserva</span>
-              </button>
-            </div>
+        {/* Bottom Navigation Mobile */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
+          <nav className="flex">
+            {Object.entries(tabLabels).map(([tab, label]) => {
+              const IconComponent = tabIcons[tab];
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 py-2 px-1 text-xs flex flex-col items-center space-y-1 ${
+                    activeTab === tab
+                      ? 'text-green-600'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <IconComponent className="h-5 w-5" />
+                  <span className="text-xs">{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          
+          {/* Rodapé Mobile - Copyright */}
+          <div className="bg-gray-800 text-center py-1">
+            <p className="text-xs text-gray-300">
+              © 2025 PauloCunhaMKT Soluções TI • v2.1.0
+            </p>
+          </div>
+        </div>
 
-            {/* Filtros */}
-            <div className="bg-white p-4 rounded-lg shadow flex space-x-4">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder="Buscar por quadra ou cliente..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
+        {/* Content */}
+        <div className="p-3 md:p-6 pb-24 md:pb-16">
+          {/* Dashboard */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+                <div className="bg-white p-3 md:p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <Calendar className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
+                    <div className="ml-2 md:ml-4">
+                      <p className="text-xs md:text-sm font-medium text-gray-600">Hoje</p>
+                      <p className="text-lg md:text-2xl font-bold text-gray-900">{reservasHoje.length}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-3 md:p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <DollarSign className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
+                    <div className="ml-2 md:ml-4">
+                      <p className="text-xs md:text-sm font-medium text-gray-600">Receita</p>
+                      <p className="text-sm md:text-2xl font-bold text-gray-900">R$ {receitaMensal.toFixed(0)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-3 md:p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <Users className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
+                    <div className="ml-2 md:ml-4">
+                      <p className="text-xs md:text-sm font-medium text-gray-600">Clientes</p>
+                      <p className="text-lg md:text-2xl font-bold text-gray-900">{clientes.length}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-3 md:p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <Clock className="h-6 w-6 md:h-8 md:w-8 text-orange-500" />
+                    <div className="ml-2 md:ml-4">
+                      <p className="text-xs md:text-sm font-medium text-gray-600">Quadras</p>
+                      <p className="text-lg md:text-2xl font-bold text-gray-900">{quadras.filter(q => q.ativa).length}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <input
-                  type="date"
-                  value={filtroData}
-                  onChange={(e) => setFiltroData(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-            </div>
 
-            {/* Lista de Reservas */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quadra</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reservasFiltradas.map((reserva) => {
+              {/* Próximas Reservas */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="p-4 md:p-6 border-b">
+                  <h3 className="text-base md:text-lg font-medium text-gray-900">Próximas Reservas</h3>
+                </div>
+                <div className="p-4 md:p-6">
+                  {reservas.slice(0, 5).map((reserva) => {
                     const quadra = quadras.find(q => q.id === reserva.quadraId);
                     const cliente = clientes.find(c => c.id === reserva.clienteId);
                     return (
-                      <tr key={reserva.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {reserva.data} {reserva.horaInicio}-{reserva.horaFim}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quadra?.nome}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente?.nome}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">R$ {reserva.valor?.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
-                            reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {reserva.status}
-                          </span>
-                        </td>
+                      <div key={reserva.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{quadra?.nome}</p>
+                          <p className="text-sm text-gray-600 truncate">{cliente?.nome}</p>
+                          <p className="text-xs text-gray-500">{reserva.data} às {reserva.horaInicio}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ml-2 ${
+                          reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                          reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {reserva.status}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {reservas.length === 0 && (
+                    <p className="text-gray-500 text-center py-8">Nenhuma reserva cadastrada</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reservas */}
+          {activeTab === 'reservas' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Reservas</h2>
+                <button
+                  onClick={() => {
+                    setModalType('reserva');
+                    setShowModal(true);
+                  }}
+                  className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Nova Reserva</span>
+                </button>
+              </div>
+
+              {/* Filtros Mobile */}
+              <div className="bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Buscar..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+                <div className="w-full md:w-auto">
+                  <input
+                    type="date"
+                    value={filtroData}
+                    onChange={(e) => setFiltroData(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Lista de Reservas Mobile */}
+              <div className="space-y-3 md:hidden">
+                {reservasFiltradas.map((reserva) => {
+                  const quadra = quadras.find(q => q.id === reserva.quadraId);
+                  const cliente = clientes.find(c => c.id === reserva.clienteId);
+                  return (
+                    <div key={reserva.id} className="bg-white rounded-lg shadow p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900">{quadra?.nome}</h3>
+                          <p className="text-sm text-gray-600">{cliente?.nome}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                          reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {reserva.status}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
+                        <div>Data: {reserva.data}</div>
+                        <div>Valor: R$ {reserva.valor?.toFixed(2)}</div>
+                        <div>Início: {reserva.horaInicio}</div>
+                        <div>Fim: {reserva.horaFim}</div>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => editarReserva(reserva)}
+                          className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => excluirReserva(reserva.id)}
+                          className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {reservasFiltradas.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    Nenhuma reserva encontrada
+                  </div>
+                )}
+              </div>
+
+              {/* Tabela Desktop */}
+              <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quadra</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {reservasFiltradas.map((reserva) => {
+                        const quadra = quadras.find(q => q.id === reserva.quadraId);
+                        const cliente = clientes.find(c => c.id === reserva.clienteId);
+                        return (
+                          <tr key={reserva.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {reserva.data} {reserva.horaInicio}-{reserva.horaFim}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quadra?.nome}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente?.nome}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">R$ {reserva.valor?.toFixed(2)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                                reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {reserva.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => editarReserva(reserva)}
+                                className="text-green-600 hover:text-green-900 mr-3"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => excluirReserva(reserva.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quadras */}
+          {activeTab === 'quadras' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Quadras</h2>
+                <button
+                  onClick={() => {
+                    setModalType('quadra');
+                    setShowModal(true);
+                  }}
+                  className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Nova Quadra</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {quadras.map((quadra) => (
+                  <div key={quadra.id} className="bg-white rounded-lg shadow p-4 md:p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-base md:text-lg font-medium text-gray-900">{quadra.nome}</h3>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        quadra.ativa ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {quadra.ativa ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mb-2 text-sm">{quadra.modalidade}</p>
+                    <p className="text-gray-900 font-medium mb-4">R$ {quadra.valorHora}/hora</p>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => editarQuadra(quadra)}
+                        className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => excluirQuadra(quadra.id)}
+                        className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clientes */}
+          {activeTab === 'clientes' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Clientes</h2>
+                <button
+                  onClick={() => {
+                    setModalType('cliente');
+                    setShowModal(true);
+                  }}
+                  className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Novo Cliente</span>
+                </button>
+              </div>
+
+              {/* Lista Mobile */}
+              <div className="space-y-3 md:hidden">
+                {clientes.map((cliente) => (
+                  <div key={cliente.id} className="bg-white rounded-lg shadow p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-medium text-gray-900">{cliente.nome}</h3>
+                        <p className="text-sm text-gray-600">{cliente.telefone}</p>
+                        <p className="text-sm text-gray-600">{cliente.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => editarCliente(cliente)}
+                        className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => excluirCliente(cliente.id)}
+                        className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabela Desktop */}
+              <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Telefone</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {clientes.map((cliente) => (
+                      <tr key={cliente.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cliente.nome}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente.telefone}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente.email}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
-                            onClick={() => editarReserva(reserva)}
-                            className="text-blue-600 hover:text-blue-900 mr-3"
+                            onClick={() => editarCliente(cliente)}
+                            className="text-green-600 hover:text-green-900 mr-3"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => excluirReserva(reserva.id)}
+                            onClick={() => excluirCliente(cliente.id)}
                             className="text-red-600 hover:text-red-900"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Quadras */}
-        {activeTab === 'quadras' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Quadras</h2>
-              <button
-                onClick={() => {
-                  setModalType('quadra');
-                  setShowModal(true);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Nova Quadra</span>
-              </button>
-            </div>
+          {/* Financeiro */}
+          {activeTab === 'financeiro' && (
+            <div className="space-y-4 md:space-y-6">
+              {/* Cabeçalho */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900">Controle Financeiro</h2>
+                  <p className="text-sm text-gray-600">Gestão de faturamentos e recebimentos</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => {
+                      setModalType('faturamento');
+                      setShowModal(true);
+                    }}
+                    className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Novo Faturamento</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setModalType('recebimento');
+                      setShowModal(true);
+                    }}
+                    className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span>Registrar Recebimento</span>
+                  </button>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {quadras.map((quadra) => (
-                <div key={quadra.id} className="bg-white rounded-lg shadow p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">{quadra.nome}</h3>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      quadra.ativa ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {quadra.ativa ? 'Ativa' : 'Inativa'}
-                    </span>
-                  </div>
-                  <p className="text-gray-600 mb-2">Modalidade: {quadra.modalidade}</p>
-                  <p className="text-gray-900 font-medium mb-4">R$ {quadra.valorHora}/hora</p>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => editarQuadra(quadra)}
-                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => excluirQuadra(quadra.id)}
-                      className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+              {/* Dashboard Financeiro */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div className="bg-blue-50 p-3 md:p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <FileText className="h-6 w-6 md:h-8 md:w-8 text-blue-500 mr-2 md:mr-3" />
+                    <div>
+                      <p className="text-xs md:text-sm font-medium text-blue-900">Faturamento Total</p>
+                      <p className="text-sm md:text-xl font-bold text-blue-600">
+                        R$ {faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                
+                <div className="bg-green-50 p-3 md:p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <CheckCircle className="h-6 w-6 md:h-8 md:w-8 text-green-500 mr-2 md:mr-3" />
+                    <div>
+                      <p className="text-xs md:text-sm font-medium text-green-900">Valores Recebidos</p>
+                      <p className="text-sm md:text-xl font-bold text-green-600">
+                        R$ {faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-red-50 p-3 md:p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <AlertCircle className="h-6 w-6 md:h-8 md:w-8 text-red-500 mr-2 md:mr-3" />
+                    <div>
+                      <p className="text-xs md:text-sm font-medium text-red-900">Em Aberto</p>
+                      <p className="text-sm md:text-xl font-bold text-red-600">
+                        R$ {faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-purple-500 mr-2 md:mr-3" />
+                    <div>
+                      <p className="text-xs md:text-sm font-medium text-purple-900">Taxa Recebimento</p>
+                      <p className="text-sm md:text-xl font-bold text-purple-600">
+                        {(() => {
+                          const total = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                          const recebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                          return total > 0 ? Math.round((recebido / total) * 100) : 0;
+                        })()}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-        {/* Clientes */}
-        {activeTab === 'clientes' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Clientes</h2>
-              <button
-                onClick={() => {
-                  setModalType('cliente');
-                  setShowModal(true);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Novo Cliente</span>
-              </button>
-            </div>
+              {/* Gráficos Financeiros */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                {/* Gráfico de Pizza - Status dos Faturamentos */}
+                <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base md:text-lg font-medium text-gray-900">Status dos Faturamentos</h3>
+                    <PieChart className="h-5 w-5 text-blue-500" />
+                  </div>
+                  
+                  {(() => {
+                    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+                    
+                    const percentualRecebido = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
+                    const percentualEmAberto = totalFaturado > 0 ? (totalEmAberto / totalFaturado) * 100 : 0;
+                    
+                    return (
+                      <div className="space-y-4">
+                        {/* Gráfico Circular Manual */}
+                        <div className="flex justify-center mb-4">
+                          <div className="relative w-32 h-32">
+                            <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                              {/* Círculo de fundo */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#f3f4f6"
+                                strokeWidth="3"
+                              />
+                              {/* Valores Recebidos */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#10b981"
+                                strokeWidth="3"
+                                strokeDasharray={`${percentualRecebido}, 100`}
+                              />
+                              {/* Valores em Aberto */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#ef4444"
+                                strokeWidth="3"
+                                strokeDasharray={`${percentualEmAberto}, 100`}
+                                strokeDashoffset={-percentualRecebido}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-center">
+                                <div className="text-sm font-bold text-gray-900">
+                                  {Math.round(percentualRecebido)}%
+                                </div>
+                                <div className="text-xs text-gray-600">Recebido</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Legenda */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                              <span className="text-sm text-gray-700">Recebido</span>
+                            </div>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {totalRecebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                              <span className="text-sm text-gray-700">Em Aberto</span>
+                            </div>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {totalEmAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="border-t pt-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">Total Faturado</span>
+                              <span className="text-sm font-bold text-blue-600">
+                                R$ {totalFaturado.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Telefone</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {clientes.map((cliente) => (
-                    <tr key={cliente.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cliente.nome}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente.telefone}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                {/* Gráfico de Barras - Faturamento por Mês */}
+                <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base md:text-lg font-medium text-gray-900">Faturamento por Mês</h3>
+                    <BarChart3 className="h-5 w-5 text-blue-500" />
+                  </div>
+                  
+                  {(() => {
+                    // Agrupar faturamentos por mês
+                    const faturamentosPorMes = {};
+                    const recebimentosPorMes = {};
+                    
+                    faturamentos.forEach(f => {
+                      if (f.data) {
+                        const mes = f.data.substring(0, 7); // YYYY-MM
+                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
+                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
+                      }
+                    });
+                    
+                    // Pegar últimos 6 meses
+                    const hoje = new Date();
+                    const meses = [];
+                    for (let i = 5; i >= 0; i--) {
+                      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+                      const mesAno = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+                      const nomemes = data.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase();
+                      meses.push({
+                        id: mesAno,
+                        nome: nomemes,
+                        faturado: faturamentosPorMes[mesAno] || 0,
+                        recebido: recebimentosPorMes[mesAno] || 0
+                      });
+                    }
+                    
+                    const maxValor = Math.max(...meses.map(m => Math.max(m.faturado, m.recebido)));
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-3">
+                          {meses.map((mes, index) => (
+                            <div key={mes.id} className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="font-medium text-gray-700">{mes.nome}</span>
+                                <span className="text-gray-600">
+                                  R$ {mes.faturado.toFixed(0)} / R$ {mes.recebido.toFixed(0)}
+                                </span>
+                              </div>
+                              <div className="relative">
+                                {/* Barra de Faturamento */}
+                                <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                                  <div
+                                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                                    style={{ width: `${maxValor > 0 ? (mes.faturado / maxValor) * 100 : 0}%` }}
+                                  ></div>
+                                  {/* Barra de Recebimento sobreposta */}
+                                  <div
+                                    className="bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300"
+                                    style={{ width: `${maxValor > 0 ? (mes.recebido / maxValor) * 100 : 0}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Legenda */}
+                        <div className="flex justify-center space-x-4 pt-4 border-t">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                            <span className="text-xs text-gray-600">Faturado</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
+                            <span className="text-xs text-gray-600">Recebido</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Resumo Detalhado por Tipo */}
+              <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                <h3 className="text-base md:text-lg font-medium text-gray-900 mb-4">Análise por Tipo de Locação</h3>
+                
+                {(() => {
+                  const analise = {
+                    mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
+                    avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
+                  };
+                  
+                  faturamentos.forEach(f => {
+                    const tipo = f.tipoLocacao?.toLowerCase() === 'mensal' ? 'mensal' : 'avulso';
+                    analise[tipo].faturado += f.valor || 0;
+                    analise[tipo].recebido += f.valorRealRecebido || 0;
+                    analise[tipo].emAberto += f.valorEmAberto || 0;
+                    analise[tipo].count += 1;
+                  });
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      {/* Locações Mensais */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                          <Calendar className="h-4 w-4 text-blue-500 mr-2" />
+                          Locações Mensais
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Contratos:</span>
+                            <span className="text-sm font-medium">{analise.mensal.count}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Faturado:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              R$ {analise.mensal.faturado.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Recebido:</span>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {analise.mensal.recebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Em Aberto:</span>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {analise.mensal.emAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
+                              <span className="text-sm font-bold text-purple-600">
+                                {analise.mensal.faturado > 0 ? 
+                                  Math.round((analise.mensal.recebido / analise.mensal.faturado) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Locações Avulsas */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                          <Clock className="h-4 w-4 text-orange-500 mr-2" />
+                          Locações Avulsas
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Locações:</span>
+                            <span className="text-sm font-medium">{analise.avulso.count}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Faturado:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              R$ {analise.avulso.faturado.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Recebido:</span>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {analise.avulso.recebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Em Aberto:</span>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {analise.avulso.emAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
+                              <span className="text-sm font-bold text-purple-600">
+                                {analise.avulso.faturado > 0 ? 
+                                  Math.round((analise.avulso.recebido / analise.avulso.faturado) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Gráficos Financeiros */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                {/* Gráfico de Pizza - Status dos Faturamentos */}
+                <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base md:text-lg font-medium text-gray-900">Status dos Faturamentos</h3>
+                    <PieChart className="h-5 w-5 text-blue-500" />
+                  </div>
+                  
+                  {(() => {
+                    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+                    
+                    const percentualRecebido = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
+                    const percentualEmAberto = totalFaturado > 0 ? (totalEmAberto / totalFaturado) * 100 : 0;
+                    
+                    return (
+                      <div className="space-y-4">
+                        {/* Gráfico Circular Manual */}
+                        <div className="flex justify-center mb-4">
+                          <div className="relative w-32 h-32">
+                            <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                              {/* Círculo de fundo */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#f3f4f6"
+                                strokeWidth="3"
+                              />
+                              {/* Valores Recebidos */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#10b981"
+                                strokeWidth="3"
+                                strokeDasharray={`${percentualRecebido}, 100`}
+                              />
+                              {/* Valores em Aberto */}
+                              <path
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke="#ef4444"
+                                strokeWidth="3"
+                                strokeDasharray={`${percentualEmAberto}, 100`}
+                                strokeDashoffset={-percentualRecebido}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="text-center">
+                                <div className="text-sm font-bold text-gray-900">
+                                  {Math.round(percentualRecebido)}%
+                                </div>
+                                <div className="text-xs text-gray-600">Recebido</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Legenda */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                              <span className="text-sm text-gray-700">Recebido</span>
+                            </div>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {totalRecebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                              <span className="text-sm text-gray-700">Em Aberto</span>
+                            </div>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {totalEmAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="border-t pt-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-900">Total Faturado</span>
+                              <span className="text-sm font-bold text-blue-600">
+                                R$ {totalFaturado.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Gráfico de Barras - Faturamento por Mês */}
+                <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base md:text-lg font-medium text-gray-900">Faturamento por Mês</h3>
+                    <BarChart3 className="h-5 w-5 text-blue-500" />
+                  </div>
+                  
+                  {(() => {
+                    // Agrupar faturamentos por mês
+                    const faturamentosPorMes = {};
+                    const recebimentosPorMes = {};
+                    
+                    faturamentos.forEach(f => {
+                      if (f.data) {
+                        const mes = f.data.substring(0, 7); // YYYY-MM
+                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
+                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
+                      }
+                    });
+                    
+                    // Pegar últimos 6 meses
+                    const hoje = new Date();
+                    const meses = [];
+                    for (let i = 5; i >= 0; i--) {
+                      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+                      const mesAno = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+                      const nomemes = data.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase();
+                      meses.push({
+                        id: mesAno,
+                        nome: nomemes,
+                        faturado: faturamentosPorMes[mesAno] || 0,
+                        recebido: recebimentosPorMes[mesAno] || 0
+                      });
+                    }
+                    
+                    const maxValor = Math.max(...meses.map(m => Math.max(m.faturado, m.recebido)));
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-3">
+                          {meses.map((mes, index) => (
+                            <div key={mes.id} className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="font-medium text-gray-700">{mes.nome}</span>
+                                <span className="text-gray-600">
+                                  R$ {mes.faturado.toFixed(0)} / R$ {mes.recebido.toFixed(0)}
+                                </span>
+                              </div>
+                              <div className="relative">
+                                {/* Barra de Faturamento */}
+                                <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                                  <div
+                                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
+                                    style={{ width: `${maxValor > 0 ? (mes.faturado / maxValor) * 100 : 0}%` }}
+                                  ></div>
+                                  {/* Barra de Recebimento sobreposta */}
+                                  <div
+                                    className="bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300"
+                                    style={{ width: `${maxValor > 0 ? (mes.recebido / maxValor) * 100 : 0}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Legenda */}
+                        <div className="flex justify-center space-x-4 pt-4 border-t">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
+                            <span className="text-xs text-gray-600">Faturado</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
+                            <span className="text-xs text-gray-600">Recebido</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Resumo Detalhado por Tipo */}
+              <div className="bg-white rounded-lg shadow p-4 md:p-6">
+                <h3 className="text-base md:text-lg font-medium text-gray-900 mb-4">Análise por Tipo de Locação</h3>
+                
+                {(() => {
+                  const analise = {
+                    mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
+                    avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
+                  };
+                  
+                  faturamentos.forEach(f => {
+                    const tipo = f.tipoLocacao?.toLowerCase() === 'mensal' ? 'mensal' : 'avulso';
+                    analise[tipo].faturado += f.valor || 0;
+                    analise[tipo].recebido += f.valorRealRecebido || 0;
+                    analise[tipo].emAberto += f.valorEmAberto || 0;
+                    analise[tipo].count += 1;
+                  });
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      {/* Locações Mensais */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                          <Calendar className="h-4 w-4 text-blue-500 mr-2" />
+                          Locações Mensais
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Contratos:</span>
+                            <span className="text-sm font-medium">{analise.mensal.count}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Faturado:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              R$ {analise.mensal.faturado.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Recebido:</span>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {analise.mensal.recebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Em Aberto:</span>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {analise.mensal.emAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
+                              <span className="text-sm font-bold text-purple-600">
+                                {analise.mensal.faturado > 0 ? 
+                                  Math.round((analise.mensal.recebido / analise.mensal.faturado) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Locações Avulsas */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                          <Clock className="h-4 w-4 text-orange-500 mr-2" />
+                          Locações Avulsas
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Locações:</span>
+                            <span className="text-sm font-medium">{analise.avulso.count}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Faturado:</span>
+                            <span className="text-sm font-medium text-blue-600">
+                              R$ {analise.avulso.faturado.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Recebido:</span>
+                            <span className="text-sm font-medium text-green-600">
+                              R$ {analise.avulso.recebido.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Em Aberto:</span>
+                            <span className="text-sm font-medium text-red-600">
+                              R$ {analise.avulso.emAberto.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="pt-2 border-t">
+                            <div className="flex justify-between">
+                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
+                              <span className="text-sm font-bold text-purple-600">
+                                {analise.avulso.faturado > 0 ? 
+                                  Math.round((analise.avulso.recebido / analise.avulso.faturado) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Filtros */}
+              <div className="bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+                <div className="w-full md:w-auto">
+                  <select
+                    value={filtroData}
+                    onChange={(e) => setFiltroData(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Todos os status</option>
+                    <option value="Pago">Pago</option>
+                    <option value="Em Aberto">Em Aberto</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Lista de Faturamentos Mobile */}
+              <div className="space-y-3 md:hidden">
+                {faturamentos
+                  .filter(faturamento => {
+                    const matchSearch = !searchTerm || 
+                      faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchStatus = !filtroData || faturamento.status === filtroData;
+                    return matchSearch && matchStatus;
+                  })
+                  .map((faturamento) => (
+                    <div key={faturamento.id} className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900">{faturamento.cliente}</h3>
+                          <p className="text-sm text-gray-600">{faturamento.tipoQuadra} - {faturamento.mesLocacao}</p>
+                          <p className="text-sm text-blue-600">R$ {faturamento.valor?.toFixed(2)}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          faturamento.status === 'Pago' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {faturamento.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
+                        <div>Recebido: R$ {faturamento.valorRealRecebido?.toFixed(2)}</div>
+                        <div>Em Aberto: R$ {faturamento.valorEmAberto?.toFixed(2)}</div>
+                        <div>Data: {faturamento.data}</div>
+                        <div>Forma: {faturamento.formaPagamento}</div>
+                      </div>
+                      
+                      <div className="flex space-x-2">
                         <button
-                          onClick={() => editarCliente(cliente)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
+                          onClick={() => editarFaturamento(faturamento)}
+                          className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
                         >
-                          <Edit className="h-4 w-4" />
+                          Editar
                         </button>
                         <button
-                          onClick={() => excluirCliente(cliente.id)}
-                          className="text-red-600 hover:text-red-900"
+                          onClick={() => excluirFaturamento(faturamento.id)}
+                          className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Impressão de Horário Mensal */}
-        {activeTab === 'impressao' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Impressão de Horário Mensal</h2>
-              <div className="flex space-x-3">
-                <input
-                  type="month"
-                  value={mesImpressao}
-                  onChange={(e) => setMesImpressao(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <button
-                  onClick={() => window.print()}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-green-700"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  <span>Imprimir</span>
-                </button>
               </div>
-            </div>
 
-            {/* Grade de Horários */}
-            <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none">
-              <div className="p-6 print:p-2">
-                <div className="text-center mb-6 print:mb-4">
-                  <h1 className="text-2xl font-bold text-gray-900 print:text-lg">
-                    Horários de Reservas - {new Date(mesImpressao + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
-                  </h1>
-                  <p className="text-gray-600 print:text-sm">Gestão de Quadras Esportivas</p>
-                </div>
-
-                {/* Tabela de Horários */}
+              {/* Tabela Desktop */}
+              <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse border border-gray-300 print:text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 print:bg-gray-100">
-                        <th className="border border-gray-300 px-2 py-1 text-left font-medium">Data</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left font-medium">Dia</th>
-                        {quadras.filter(q => q.ativa).map(quadra => (
-                          <th key={quadra.id} className="border border-gray-300 px-2 py-1 text-left font-medium min-w-32">
-                            {quadra.nome}
-                          </th>
-                        ))}
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mês/Quadra</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recebido</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Em Aberto</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {(() => {
-                        const [ano, mes] = mesImpressao.split('-');
-                        const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-                        const dias = [];
-                        
-                        for (let dia = 1; dia <= diasNoMes; dia++) {
-                          const dataCompleta = `${mesImpressao}-${dia.toString().padStart(2, '0')}`;
-                          const dataObj = new Date(dataCompleta);
-                          const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'short' });
-                          
-                          const reservasDoDia = reservas.filter(r => r.data === dataCompleta);
-                          
-                          dias.push(
-                            <tr key={dia} className={`${dia % 2 === 0 ? 'bg-gray-50' : 'bg-white'} print:break-inside-avoid`}>
-                              <td className="border border-gray-300 px-2 py-1 font-medium">
-                                {dia.toString().padStart(2, '0')}
-                              </td>
-                              <td className="border border-gray-300 px-2 py-1">
-                                {diaSemana}
-                              </td>
-                              {quadras.filter(q => q.ativa).map(quadra => {
-                                const reservasQuadra = reservasDoDia.filter(r => r.quadraId === quadra.id);
-                                return (
-                                  <td key={quadra.id} className="border border-gray-300 px-1 py-1 text-xs">
-                                    {reservasQuadra.map((reserva, index) => {
-                                      const cliente = clientes.find(c => c.id === reserva.clienteId);
-                                      return (
-                                        <div 
-                                          key={index}
-                                          className={`mb-1 p-1 rounded text-xs ${
-                                            reserva.status === 'Confirmada' ? 'bg-green-100' :
-                                            reserva.status === 'Pendente' ? 'bg-yellow-100' :
-                                            'bg-red-100'
-                                          }`}
-                                        >
-                                          <div className="font-medium">{reserva.horaInicio}-{reserva.horaFim}</div>
-                                          <div className="truncate">{cliente?.nome || 'Cliente não encontrado'}</div>
-                                          <div className="text-gray-600">R$ {reserva.valor?.toFixed(2)}</div>
-                                        </div>
-                                      );
-                                    })}
-                                    {reservasQuadra.length === 0 && (
-                                      <div className="text-gray-400 text-center">-</div>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        }
-                        
-                        return dias;
-                      })()}
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {faturamentos
+                        .filter(faturamento => {
+                          const matchSearch = !searchTerm || 
+                            faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+                          const matchStatus = !filtroData || faturamento.status === filtroData;
+                          return matchSearch && matchStatus;
+                        })
+                        .map((faturamento) => (
+                          <tr key={faturamento.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{faturamento.cliente}</div>
+                                <div className="text-sm text-gray-500">{faturamento.data}</div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{faturamento.mesLocacao}</div>
+                              <div className="text-sm text-gray-500">{faturamento.tipoQuadra}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              R$ {faturamento.valor?.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                              R$ {faturamento.valorRealRecebido?.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                              R$ {faturamento.valorEmAberto?.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                faturamento.status === 'Pago' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {faturamento.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => editarFaturamento(faturamento)}
+                                className="text-blue-600 hover:text-blue-900 mr-3"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => excluirFaturamento(faturamento.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
+              </div>
 
-                {/* Legenda */}
-                <div className="mt-6 print:mt-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3 print:text-sm">Legenda de Status</h3>
-                  <div className="flex space-x-6 print:space-x-4 print:text-xs">
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-green-100 rounded mr-2"></div>
-                      <span>Confirmada</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-yellow-100 rounded mr-2"></div>
-                      <span>Pendente</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 bg-red-100 rounded mr-2"></div>
-                      <span>Cancelada</span>
+              {/* Histórico de Recebimentos */}
+              {recebimentos.length > 0 && (
+                <div className="bg-white rounded-lg shadow">
+                  <div className="p-4 md:p-6 border-b">
+                    <h3 className="text-base md:text-lg font-medium text-gray-900">Histórico de Recebimentos</h3>
+                  </div>
+                  <div className="p-4 md:p-6">
+                    <div className="space-y-3">
+                      {recebimentos.slice(-10).reverse().map((recebimento) => {
+                        const faturamento = faturamentos.find(f => f.id === recebimento.faturamentoId);
+                        return (
+                          <div key={recebimento.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{faturamento?.cliente || 'Cliente não encontrado'}</p>
+                              <p className="text-sm text-gray-600 truncate">
+                                {recebimento.data} - {recebimento.formaPagamento}
+                              </p>
+                            </div>
+                            <div className="text-right ml-2">
+                              <p className="font-medium text-green-600">R$ {recebimento.valor?.toFixed(2)}</p>
+                              <button
+                                onClick={() => excluirRecebimento(recebimento.id)}
+                                className="text-red-500 hover:text-red-700 text-xs"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
 
-                {/* Resumo Mensal */}
-                <div className="mt-6 print:mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 print:gap-2">
-                  <div className="bg-blue-50 p-4 rounded-lg print:p-2">
-                    <h4 className="font-medium text-blue-900 print:text-sm">Total de Reservas</h4>
-                    <p className="text-2xl font-bold text-blue-600 print:text-lg">
-                      {reservas.filter(r => r.data.startsWith(mesImpressao)).length}
-                    </p>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg print:p-2">
-                    <h4 className="font-medium text-green-900 print:text-sm">Receita Total</h4>
-                    <p className="text-2xl font-bold text-green-600 print:text-lg">
-                      R$ {reservas
-                        .filter(r => r.data.startsWith(mesImpressao))
-                        .reduce((acc, r) => acc + (r.valor || 0), 0)
-                        .toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg print:p-2">
-                    <h4 className="font-medium text-purple-900 print:text-sm">Taxa de Ocupação</h4>
-                    <p className="text-2xl font-bold text-purple-600 print:text-lg">
-                      {(() => {
-                        const diasNoMes = new Date(mesImpressao.split('-')[0], mesImpressao.split('-')[1], 0).getDate();
-                        const totalSlotsPossiveis = diasNoMes * quadras.filter(q => q.ativa).length;
-                        const slotsOcupados = reservas.filter(r => r.data.startsWith(mesImpressao) && r.status === 'Confirmada').length;
-                        return totalSlotsPossiveis > 0 ? Math.round((slotsOcupados / totalSlotsPossiveis) * 100) : 0;
-                      })()}%
+          {/* Administradores */}
+          {activeTab === 'admin' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900">Administradores</h2>
+                  <p className="text-sm text-gray-600">Gerencie usuários com acesso ao sistema</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setModalType('admin');
+                    setShowModal(true);
+                  }}
+                  className="w-full sm:w-auto bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-orange-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Novo Administrador</span>
+                </button>
+              </div>
+
+              {/* Alert de Segurança */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex">
+                  <Shield className="h-5 w-5 text-amber-500 mr-3 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-medium text-amber-800">Área Restrita</h3>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Apenas usuários com permissões administrativas podem acessar esta seção. 
+                      Mantenha as credenciais seguras e atualize as senhas regularmente.
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Lista de Administradores Mobile */}
+              <div className="space-y-3 md:hidden">
+                {usuariosAdmin.map((admin) => (
+                  <div key={admin.id} className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900">{admin.nome}</h3>
+                        <p className="text-sm text-gray-600">{admin.cargo}</p>
+                        <p className="text-sm text-orange-600 font-medium">@{admin.usuario}</p>
+                      </div>
+                      <Shield className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => editarAdmin(admin)}
+                        className="flex-1 bg-orange-600 text-white px-3 py-2 rounded text-sm hover:bg-orange-700"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => excluirAdmin(admin.id)}
+                        className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+                        disabled={usuariosAdmin.length <= 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {usuariosAdmin.length <= 1 && (
+                      <p className="text-xs text-red-500 mt-2">
+                        ⚠️ Último administrador - não pode ser excluído
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabela Desktop */}
+              <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuário</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cargo</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Senha</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {usuariosAdmin.map((admin) => (
+                      <tr key={admin.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <Shield className="h-5 w-5 text-orange-500 mr-3" />
+                            <div className="text-sm font-medium text-gray-900">{admin.nome}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-orange-600 font-medium">@{admin.usuario}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{admin.cargo}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded">••••••••</code>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => editarAdmin(admin)}
+                            className="text-orange-600 hover:text-orange-900 mr-3"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => excluirAdmin(admin.id)}
+                            className={`${usuariosAdmin.length <= 1 ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
+                            disabled={usuariosAdmin.length <= 1}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {usuariosAdmin.length <= 1 && (
+                  <div className="px-6 py-3 bg-red-50 border-t border-red-200">
+                    <p className="text-sm text-red-700 flex items-center">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Último administrador ativo - não pode ser excluído por segurança
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Estatísticas */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-orange-50 p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <Users className="h-8 w-8 text-orange-500 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-orange-900">Total de Administradores</p>
+                      <p className="text-2xl font-bold text-orange-600">{usuariosAdmin.length}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <Shield className="h-8 w-8 text-green-500 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-green-900">Sistema Seguro</p>
+                      <p className="text-2xl font-bold text-green-600">✓</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className="flex items-center">
+                    <Calendar className="h-8 w-8 text-blue-500 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Último Acesso</p>
+                      <p className="text-sm font-bold text-blue-600">Hoje</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Impressão */}
+          {activeTab === 'impressao' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Impressão Mensal</h2>
+                <div className="flex flex-col sm:flex-row w-full sm:w-auto space-y-2 sm:space-y-0 sm:space-x-3">
+                  <input
+                    type="month"
+                    value={mesImpressao}
+                    onChange={(e) => setMesImpressao(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <button
+                    onClick={() => window.print()}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Imprimir</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Resumo Mobile */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                <div className="bg-blue-50 p-3 md:p-4 rounded-lg">
+                  <h4 className="font-medium text-blue-900 text-sm">Total de Reservas</h4>
+                  <p className="text-xl md:text-2xl font-bold text-blue-600">
+                    {reservas.filter(r => r.data.startsWith(mesImpressao)).length}
+                  </p>
+                </div>
+                <div className="bg-green-50 p-3 md:p-4 rounded-lg">
+                  <h4 className="font-medium text-green-900 text-sm">Receita Total</h4>
+                  <p className="text-xl md:text-2xl font-bold text-green-600">
+                    R$ {reservas
+                      .filter(r => r.data.startsWith(mesImpressao))
+                      .reduce((acc, r) => acc + (r.valor || 0), 0)
+                      .toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
+                  <h4 className="font-medium text-purple-900 text-sm">Taxa Ocupação</h4>
+                  <p className="text-xl md:text-2xl font-bold text-purple-600">
+                    {(() => {
+                      const diasNoMes = new Date(mesImpressao.split('-')[0], mesImpressao.split('-')[1], 0).getDate();
+                      const totalSlotsPossiveis = diasNoMes * quadras.filter(q => q.ativa).length;
+                      const slotsOcupados = reservas.filter(r => r.data.startsWith(mesImpressao) && r.status === 'Confirmada').length;
+                      return totalSlotsPossiveis > 0 ? Math.round((slotsOcupados / totalSlotsPossiveis) * 100) : 0;
+                    })()}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Tabela Simplificada para Mobile */}
+              <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none">
+                <div className="p-3 md:p-6 print:p-2">
+                  <div className="text-center mb-4 md:mb-6 print:mb-4">
+                    <div className="flex items-center justify-center mb-2 print:mb-1">
+                      <img 
+                        src="assets/QnQ2IRKmq0zfR25_j1Nkf.png" 
+                        alt="Esporte Clube Jurema" 
+                        className="h-12 w-12 md:h-16 md:w-16 rounded-full bg-white p-1 mr-3 print:h-10 print:w-10"
+                      />
+                      <div>
+                        <h1 className="text-lg md:text-2xl font-bold text-green-700 print:text-lg">
+                          ESPORTE CLUBE JUREMA
+                        </h1>
+                        <p className="text-sm text-green-600 print:text-sm">Valinhos - Fundado em 03/09/2006</p>
+                      </div>
+                    </div>
+                    <h2 className="text-base md:text-lg font-semibold text-gray-800 print:text-base">
+                      Horários - {new Date(mesImpressao + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
+                    </h2>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 print:bg-gray-100">
+                          <th className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">Data</th>
+                          <th className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">Dia</th>
+                          {quadras.filter(q => q.ativa).map(quadra => (
+                            <th key={quadra.id} className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">
+                              <div className="truncate">{quadra.nome.split(' ')[0]}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const [ano, mes] = mesImpressao.split('-');
+                          const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+                          const dias = [];
+                          
+                          for (let dia = 1; dia <= diasNoMes; dia++) {
+                            const dataCompleta = `${mesImpressao}-${dia.toString().padStart(2, '0')}`;
+                            const dataObj = new Date(dataCompleta);
+                            const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'short' });
+                            
+                            const reservasDoDia = reservas.filter(r => r.data === dataCompleta);
+                            
+                            dias.push(
+                              <tr key={dia} className={`${dia % 2 === 0 ? 'bg-gray-50' : 'bg-white'} print:break-inside-avoid`}>
+                                <td className="border border-gray-300 px-1 md:px-2 py-1 font-medium">
+                                  {dia.toString().padStart(2, '0')}
+                                </td>
+                                <td className="border border-gray-300 px-1 md:px-2 py-1">
+                                  {diaSemana}
+                                </td>
+                                {quadras.filter(q => q.ativa).map(quadra => {
+                                  const reservasQuadra = reservasDoDia.filter(r => r.quadraId === quadra.id);
+                                  return (
+                                    <td key={quadra.id} className="border border-gray-300 px-1 py-1">
+                                      {reservasQuadra.map((reserva, index) => {
+                                        const cliente = clientes.find(c => c.id === reserva.clienteId);
+                                        return (
+                                          <div 
+                                            key={index}
+                                            className={`mb-1 p-1 rounded text-xs ${
+                                              reserva.status === 'Confirmada' ? 'bg-green-100' :
+                                              reserva.status === 'Pendente' ? 'bg-yellow-100' :
+                                              'bg-red-100'
+                                            }`}
+                                          >
+                                            <div className="font-medium text-xs">{reserva.horaInicio}-{reserva.horaFim}</div>
+                                            <div className="truncate text-xs">{cliente?.nome?.split(' ')[0] || 'N/A'}</div>
+                                            <div className="text-gray-600 text-xs">R$ {reserva.valor?.toFixed(0)}</div>
+                                          </div>
+                                        );
+                                      })}
+                                      {reservasQuadra.length === 0 && (
+                                        <div className="text-gray-400 text-center text-xs">-</div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          }
+                          
+                          return dias;
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Legenda */}
+                  <div className="mt-4 md:mt-6 print:mt-4">
+                    <h3 className="text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm">Legenda</h3>
+                    <div className="flex flex-wrap gap-3 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 md:w-4 md:h-4 bg-green-100 rounded mr-1 md:mr-2"></div>
+                        <span>Confirmada</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 md:w-4 md:h-4 bg-yellow-100 rounded mr-1 md:mr-2"></div>
+                        <span>Pendente</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 md:w-4 md:h-4 bg-red-100 rounded mr-1 md:mr-2"></div>
+                        <span>Cancelada</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Rodapé Desktop */}
+        <div className="hidden md:block bg-gray-800 text-center py-3 mt-8 border-t border-gray-700">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center justify-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-sm text-gray-300">Sistema Online</span>
+              </div>
+              <div className="text-gray-500">•</div>
+              <p className="text-sm text-gray-300">
+                © 2025 <span className="font-medium text-green-400">PauloCunhaMKT</span> Soluções TI
+              </p>
+              <div className="text-gray-500">•</div>
+              <div className="flex items-center space-x-1">
+                <span className="text-xs bg-gray-700 px-2 py-1 rounded text-gray-400">v2.1.0</span>
+                <span className="text-xs text-gray-500">Build 2025.01</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Sistema de Gestão Esportiva • Desenvolvido especialmente para o Esporte Clube Jurema
+            </p>
+          </div>
+        </div>
+
+        {/* Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-base md:text-lg font-medium">
+                  {editingItem ? 'Editar' : 'Novo'} {
+                    modalType === 'quadra' ? 'Quadra' :
+                    modalType === 'cliente' ? 'Cliente' : 
+                    modalType === 'admin' ? 'Administrador' :
+                    modalType === 'faturamento' ? 'Faturamento' :
+                    modalType === 'recebimento' ? 'Recebimento' : 'Reserva'
+                  }
+                </h3>
+                <button onClick={fecharModal}>
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {modalType === 'quadra' && (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Nome da quadra"
+                    value={formQuadra.nome}
+                    onChange={(e) => setFormQuadra({...formQuadra, nome: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <select
+                    value={formQuadra.modalidade}
+                    onChange={(e) => setFormQuadra({...formQuadra, modalidade: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Selecione a modalidade</option>
+                    <option value="Campo de Futebol">Campo de Futebol</option>
+                    <option value="Quadra de Futsal">Quadra de Futsal</option>
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Valor por hora"
+                    value={formQuadra.valorHora}
+                    onChange={(e) => setFormQuadra({...formQuadra, valorHora: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <label className="flex items-center text-sm">
+                    <input
+                      type="checkbox"
+                      checked={formQuadra.ativa}
+                      onChange={(e) => setFormQuadra({...formQuadra, ativa: e.target.checked})}
+                      className="mr-2"
+                    />
+                    Quadra ativa
+                  </label>
+                  <button
+                    onClick={adicionarQuadra}
+                    className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
+                  >
+                    {editingItem ? 'Atualizar' : 'Adicionar'}
+                  </button>
+                </div>
+              )}
+
+              {modalType === 'cliente' && (
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Nome do cliente"
+                    value={formCliente.nome}
+                    onChange={(e) => setFormCliente({...formCliente, nome: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Telefone"
+                    value={formCliente.telefone}
+                    onChange={(e) => setFormCliente({...formCliente, telefone: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={formCliente.email}
+                    onChange={(e) => setFormCliente({...formCliente, email: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <button
+                    onClick={adicionarCliente}
+                    className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
+                  >
+                    {editingItem ? 'Atualizar' : 'Adicionar'}
+                  </button>
+                </div>
+              )}
+
+              {modalType === 'reserva' && (
+                <div className="space-y-4">
+                  <select
+                    value={formReserva.quadraId}
+                    onChange={(e) => setFormReserva({...formReserva, quadraId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Selecione a quadra</option>
+                    {quadras.filter(q => q.ativa).map(quadra => (
+                      <option key={quadra.id} value={quadra.id}>{quadra.nome}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={formReserva.clienteId}
+                    onChange={(e) => setFormReserva({...formReserva, clienteId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Selecione o cliente</option>
+                    {clientes.map(cliente => (
+                      <option key={cliente.id} value={cliente.id}>{cliente.nome}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="date"
+                    value={formReserva.data}
+                    onChange={(e) => setFormReserva({...formReserva, data: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="time"
+                      placeholder="Hora início"
+                      value={formReserva.horaInicio}
+                      onChange={(e) => setFormReserva({...formReserva, horaInicio: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="time"
+                      placeholder="Hora fim"
+                      value={formReserva.horaFim}
+                      onChange={(e) => setFormReserva({...formReserva, horaFim: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <input
+                    type="number"
+                    placeholder="Valor (opcional)"
+                    value={formReserva.valor}
+                    onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <select
+                    value={formReserva.status}
+                    onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="Confirmada">Confirmada</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Cancelada">Cancelada</option>
+                  </select>
+                  <textarea
+                    placeholder="Observações (opcional)"
+                    value={formReserva.observacoes}
+                    onChange={(e) => setFormReserva({...formReserva, observacoes: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    rows="3"
+                  />
+                  <button
+                    onClick={adicionarReserva}
+                    className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
+                  >
+                    {editingItem ? 'Atualizar' : 'Adicionar'}
+                  </button>
+                </div>
+              )}
+
+              {modalType === 'admin' && (
+                <div className="space-y-4">
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                    <div className="flex">
+                      <Shield className="h-4 w-4 text-orange-500 mr-2 mt-0.5" />
+                      <p className="text-sm text-orange-700">
+                        <strong>Importante:</strong> Mantenha as credenciais seguras. Evite senhas simples.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <input
+                    type="text"
+                    placeholder="Nome completo"
+                    value={formAdmin.nome}
+                    onChange={(e) => setFormAdmin({...formAdmin, nome: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  
+                  <input
+                    type="text"
+                    placeholder="Nome de usuário (login)"
+                    value={formAdmin.usuario}
+                    onChange={(e) => setFormAdmin({...formAdmin, usuario: e.target.value.toLowerCase().replace(/\s+/g, '')})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Senha de acesso"
+                      value={formAdmin.senha}
+                      onChange={(e) => setFormAdmin({...formAdmin, senha: e.target.value})}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  
+                  <select
+                    value={formAdmin.cargo}
+                    onChange={(e) => setFormAdmin({...formAdmin, cargo: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Selecione o cargo</option>
+                    <option value="Administrador Geral">Administrador Geral</option>
+                    <option value="Gerente de Operações">Gerente de Operações</option>
+                    <option value="Secretário do Clube">Secretário do Clube</option>
+                    <option value="Assistente Administrativo">Assistente Administrativo</option>
+                    <option value="Coordenador de Quadras">Coordenador de Quadras</option>
+                  </select>
+
+                  <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
+                    <p><strong>Dicas de Segurança:</strong></p>
+                    <ul className="mt-1 space-y-1">
+                      <li>• Use senhas com pelo menos 8 caracteres</li>
+                      <li>• Combine letras, números e símbolos</li>
+                      <li>• Evite informações pessoais óbvias</li>
+                      <li>• Altere a senha regularmente</li>
+                    </ul>
+                  </div>
+                  
+                  <button
+                    onClick={adicionarAdmin}
+                    className="w-full bg-orange-600 text-white py-2 rounded-md hover:bg-orange-700 text-sm"
+                  >
+                    {editingItem ? 'Atualizar Administrador' : 'Adicionar Administrador'}
+                  </button>
+                </div>
+              )}
+
+              {modalType === 'faturamento' && (
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Faturamento:</strong> Registre todas as informações da locação conforme orientações.
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="date"
+                      placeholder="Data"
+                      value={formFaturamento.data}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, data: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Cliente"
+                      value={formFaturamento.cliente}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, cliente: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Mês Locação (ex: JAN/2025)"
+                      value={formFaturamento.mesLocacao}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, mesLocacao: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Hora"
+                      value={formFaturamento.hora}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, hora: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <select
+                      value={formFaturamento.tipoQuadra}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, tipoQuadra: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="">Tipo de Quadra</option>
+                      <option value="Campo de Futebol">Campo de Futebol</option>
+                      <option value="Quadra de Futsal">Quadra de Futsal</option>
+                    </select>
+                    <select
+                      value={formFaturamento.tipoLocacao}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, tipoLocacao: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="">Tipo de Locação</option>
+                      <option value="Mensal">Mensal</option>
+                      <option value="Avulso">Avulso</option>
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Recibo de Pagamento Nº"
+                      value={formFaturamento.reciboPagamento}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, reciboPagamento: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="date"
+                      placeholder="Data da Locação"
+                      value={formFaturamento.dataLocacao}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, dataLocacao: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Valor da Locação"
+                    value={formFaturamento.valor}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, valor: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  
+                  <select
+                    value={formFaturamento.formaPagamento}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, formaPagamento: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Forma de Pagamento</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Transferência">Transferência</option>
+                    <option value="Cartão">Cartão</option>
+                  </select>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Valor Recebido (inicial)"
+                      value={formFaturamento.valorRecebido}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, valorRecebido: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="Valor Real Recebido"
+                      value={formFaturamento.valorRealRecebido}
+                      onChange={(e) => setFormFaturamento({...formFaturamento, valorRealRecebido: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  
+                  <textarea
+                    placeholder="Observações"
+                    value={formFaturamento.observacoes}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, observacoes: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    rows="3"
+                  />
+                  
+                  <button
+                    onClick={adicionarFaturamento}
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 text-sm"
+                  >
+                    {editingItem ? 'Atualizar Faturamento' : 'Registrar Faturamento'}
+                  </button>
+                </div>
+              )}
+
+              {modalType === 'recebimento' && (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-700">
+                      <strong>Recebimento:</strong> Registre valores recebidos posteriormente ao faturamento.
+                    </p>
+                  </div>
+                  
+                  <select
+                    value={formRecebimento.faturamentoId}
+                    onChange={(e) => setFormRecebimento({...formRecebimento, faturamentoId: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Selecione o Faturamento</option>
+                    {faturamentos
+                      .filter(f => f.valorEmAberto > 0)
+                      .map(faturamento => (
+                        <option key={faturamento.id} value={faturamento.id}>
+                          {faturamento.cliente} - {faturamento.mesLocacao} (R$ {faturamento.valorEmAberto?.toFixed(2)} em aberto)
+                        </option>
+                      ))}
+                  </select>
+                  
+                  <input
+                    type="date"
+                    value={formRecebimento.data}
+                    onChange={(e) => setFormRecebimento({...formRecebimento, data: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Valor Recebido"
+                    value={formRecebimento.valor}
+                    onChange={(e) => setFormRecebimento({...formRecebimento, valor: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  
+                  <select
+                    value={formRecebimento.formaPagamento}
+                    onChange={(e) => setFormRecebimento({...formRecebimento, formaPagamento: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Forma de Pagamento</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Transferência">Transferência</option>
+                    <option value="Cartão">Cartão</option>
+                  </select>
+                  
+                  <textarea
+                    placeholder="Observações"
+                    value={formRecebimento.observacoes}
+                    onChange={(e) => setFormRecebimento({...formRecebimento, observacoes: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    rows="3"
+                  />
+                  
+                  <button
+                    onClick={adicionarRecebimento}
+                    className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
+                  >
+                    Registrar Recebimento
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
-      </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">
-                {editingItem ? 'Editar' : 'Nova'} {
-                  modalType === 'quadra' ? 'Quadra' :
-                  modalType === 'cliente' ? 'Cliente' : 'Reserva'
-                }
-              </h3>
-              <button onClick={fecharModal}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {modalType === 'quadra' && (
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Nome da quadra"
-                  value={formQuadra.nome}
-                  onChange={(e) => setFormQuadra({...formQuadra, nome: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <select
-                  value={formQuadra.modalidade}
-                  onChange={(e) => setFormQuadra({...formQuadra, modalidade: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Selecione a modalidade</option>
-                  <option value="Campo de Futebol">Campo de Futebol</option>
-                  <option value="Quadra de Futsal">Quadra de Futsal</option>
-                </select>
-                <input
-                  type="number"
-                  placeholder="Valor por hora"
-                  value={formQuadra.valorHora}
-                  onChange={(e) => setFormQuadra({...formQuadra, valorHora: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formQuadra.ativa}
-                    onChange={(e) => setFormQuadra({...formQuadra, ativa: e.target.checked})}
-                    className="mr-2"
-                  />
-                  Quadra ativa
-                </label>
-                <button
-                  onClick={adicionarQuadra}
-                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
-                >
-                  {editingItem ? 'Atualizar' : 'Adicionar'}
-                </button>
-              </div>
-            )}
-
-            {modalType === 'cliente' && (
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Nome do cliente"
-                  value={formCliente.nome}
-                  onChange={(e) => setFormCliente({...formCliente, nome: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <input
-                  type="text"
-                  placeholder="Telefone"
-                  value={formCliente.telefone}
-                  onChange={(e) => setFormCliente({...formCliente, telefone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={formCliente.email}
-                  onChange={(e) => setFormCliente({...formCliente, email: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <button
-                  onClick={adicionarCliente}
-                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
-                >
-                  {editingItem ? 'Atualizar' : 'Adicionar'}
-                </button>
-              </div>
-            )}
-
-            {modalType === 'reserva' && (
-              <div className="space-y-4">
-                <select
-                  value={formReserva.quadraId}
-                  onChange={(e) => setFormReserva({...formReserva, quadraId: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Selecione a quadra</option>
-                  {quadras.filter(q => q.ativa).map(quadra => (
-                    <option key={quadra.id} value={quadra.id}>{quadra.nome}</option>
-                  ))}
-                </select>
-                <select
-                  value={formReserva.clienteId}
-                  onChange={(e) => setFormReserva({...formReserva, clienteId: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="">Selecione o cliente</option>
-                  {clientes.map(cliente => (
-                    <option key={cliente.id} value={cliente.id}>{cliente.nome}</option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  value={formReserva.data}
-                  onChange={(e) => setFormReserva({...formReserva, data: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="time"
-                    placeholder="Hora início"
-                    value={formReserva.horaInicio}
-                    onChange={(e) => setFormReserva({...formReserva, horaInicio: e.target.value})}
-                    className="px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                  <input
-                    type="time"
-                    placeholder="Hora fim"
-                    value={formReserva.horaFim}
-                    onChange={(e) => setFormReserva({...formReserva, horaFim: e.target.value})}
-                    className="px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-                <input
-                  type="number"
-                  placeholder="Valor (opcional - será calculado automaticamente)"
-                  value={formReserva.valor}
-                  onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <select
-                  value={formReserva.status}
-                  onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                >
-                  <option value="Confirmada">Confirmada</option>
-                  <option value="Pendente">Pendente</option>
-                  <option value="Cancelada">Cancelada</option>
-                </select>
-                <textarea
-                  placeholder="Observações (opcional)"
-                  value={formReserva.observacoes}
-                  onChange={(e) => setFormReserva({...formReserva, observacoes: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  rows="3"
-                />
-                <button
-                  onClick={adicionarReserva}
-                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700"
-                >
-                  {editingItem ? 'Atualizar' : 'Adicionar'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
       </div>
     </>
   );
