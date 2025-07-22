@@ -5,7 +5,7 @@ var QuadraManagementSystem = () => {
   const { useStoredState } = hatch;
   const [isAuthenticated, setIsAuthenticated] = useStoredState("isAuthenticated", false);
   const [usuarioLogado, setUsuarioLogado] = useStoredState("usuarioLogado", null);
-  const [showLogin, setShowLogin] = useState(!isAuthenticated);
+  const [showLogin, setShowLogin] = useState(true);
   const [loginForm, setLoginForm] = useState({ usuario: "", senha: "" });
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -314,6 +314,15 @@ var QuadraManagementSystem = () => {
       setUsuariosAdmin(usuariosAdmin.filter((u) => u.id !== id));
     }
   };
+  useEffect(() => {
+    if (isAuthenticated && usuarioLogado && usuariosAdmin.find((u) => u.id === usuarioLogado.id)) {
+      setShowLogin(false);
+    } else {
+      setIsAuthenticated(false);
+      setUsuarioLogado(null);
+      setShowLogin(true);
+    }
+  }, [isAuthenticated, usuarioLogado, usuariosAdmin]);
   const handleLogin = (e) => {
     e.preventDefault();
     const usuario = usuariosAdmin.find(
@@ -334,6 +343,8 @@ var QuadraManagementSystem = () => {
     setUsuarioLogado(null);
     setShowLogin(true);
     setActiveTab("dashboard");
+    setLoginForm({ usuario: "", senha: "" });
+    setLoginError("");
   };
   const fecharModal = () => {
     setShowModal(false);
@@ -447,7 +458,7 @@ var QuadraManagementSystem = () => {
         className: "w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition duration-200 font-medium"
       },
       "Entrar"
-    )), /* @__PURE__ */ React.createElement("div", { className: "mt-8 p-4 bg-gray-50 rounded-lg" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-medium text-gray-700 mb-2" }, "Usu\xE1rios Autorizados:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600 space-y-1" }, usuariosAdmin.map((user) => /* @__PURE__ */ React.createElement("div", { key: user.id }, "\u2022 ", /* @__PURE__ */ React.createElement("strong", null, user.usuario), " - ", user.cargo))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-2" }, "Entre em contato com a administra\xE7\xE3o para obter as credenciais."))));
+    )), /* @__PURE__ */ React.createElement("div", { className: "mt-8 p-4 bg-gray-50 rounded-lg" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-medium text-gray-700 mb-2" }, "Usu\xE1rios Autorizados:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600 space-y-1" }, usuariosAdmin.map((user) => /* @__PURE__ */ React.createElement("div", { key: user.id }, "\u2022 ", /* @__PURE__ */ React.createElement("strong", null, user.usuario), " - ", user.cargo))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-2" }, "Entre em contato com a administra\xE7\xE3o para obter as credenciais."), /* @__PURE__ */ React.createElement("div", { className: "mt-3 pt-3 border-t border-gray-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, /* @__PURE__ */ React.createElement("strong", null, "Acesso Inicial:"), " A cada nova sess\xE3o, \xE9 necess\xE1rio fazer login novamente por seguran\xE7a.")))));
   }
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("style", { jsx: true }, `
         @media print {

@@ -1,5 +1,5 @@
 {
-  "isAuthenticated": true,
+  "isAuthenticated": false,
   "quadras": [
     {
       "id": 1,
@@ -15,5 +15,6 @@
       "ativa": true,
       "id": 2
     }
-  ]
+  ],
+  "usuarioLogado": null
 }

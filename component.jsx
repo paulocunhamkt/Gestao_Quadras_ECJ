@@ -7,7 +7,7 @@ const QuadraManagementSystem = () => {
   // Sistema de Autenticação
   const [isAuthenticated, setIsAuthenticated] = useStoredState('isAuthenticated', false);
   const [usuarioLogado, setUsuarioLogado] = useStoredState('usuarioLogado', null);
-  const [showLogin, setShowLogin] = useState(!isAuthenticated);
+  const [showLogin, setShowLogin] = useState(true); // Sempre inicia na tela de login
   const [loginForm, setLoginForm] = useState({ usuario: '', senha: '' });
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -362,6 +362,19 @@ const QuadraManagementSystem = () => {
     }
   };
 
+  // Verificar se há sessão válida ao carregar
+  useEffect(() => {
+    // Apenas permite acesso direto se já estiver autenticado E tiver usuário válido
+    if (isAuthenticated && usuarioLogado && usuariosAdmin.find(u => u.id === usuarioLogado.id)) {
+      setShowLogin(false);
+    } else {
+      // Limpa qualquer estado inválido
+      setIsAuthenticated(false);
+      setUsuarioLogado(null);
+      setShowLogin(true);
+    }
+  }, [isAuthenticated, usuarioLogado, usuariosAdmin]);
+
   // Funções de Autenticação
   const handleLogin = (e) => {
     e.preventDefault();
@@ -385,6 +398,9 @@ const QuadraManagementSystem = () => {
     setUsuarioLogado(null);
     setShowLogin(true);
     setActiveTab('dashboard');
+    // Limpar formulários
+    setLoginForm({ usuario: '', senha: '' });
+    setLoginError('');
   };
 
   const fecharModal = () => {
@@ -550,6 +566,11 @@ const QuadraManagementSystem = () => {
             <p className="text-xs text-gray-500 mt-2">
               Entre em contato com a administração para obter as credenciais.
             </p>
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500">
+                <strong>Acesso Inicial:</strong> A cada nova sessão, é necessário fazer login novamente por segurança.
+              </p>
+            </div>
           </div>
         </div>
       </div>
