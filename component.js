@@ -32,6 +32,8 @@ var QuadraManagementSystem = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filtroData, setFiltroData] = useState("");
   const [mesImpressao, setMesImpressao] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 7));
+  const [quadraImpressao, setQuadraImpressao] = useState("");
+  const [semanaImpressao, setSemanaImpressao] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [formQuadra, setFormQuadra] = useState({ nome: "", modalidade: "", valorHora: "", ativa: true });
   const [formCliente, setFormCliente] = useState({ nome: "", telefone: "", email: "" });
@@ -43,6 +45,10 @@ var QuadraManagementSystem = () => {
     horaFim: "",
     valor: "",
     status: "Confirmada",
+    statusPagamento: "Pendente",
+    valorPago: "",
+    formaPagamento: "",
+    dataPagamento: "",
     observacoes: ""
   });
   const [formAdmin, setFormAdmin] = useState({ nome: "", usuario: "", senha: "", cargo: "" });
@@ -112,7 +118,9 @@ var QuadraManagementSystem = () => {
           valor: valorTotal,
           valorRecebido,
           valorEmAberto,
-          valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido
+          valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido,
+          usuarioEdicao: usuarioLogado?.nome || "Sistema",
+          dataEdicao: (/* @__PURE__ */ new Date()).toISOString()
         } : f
       ));
     } else {
@@ -123,7 +131,9 @@ var QuadraManagementSystem = () => {
         valorRecebido,
         valorEmAberto,
         valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido,
-        status: valorEmAberto > 0 ? "Em Aberto" : "Pago"
+        status: valorEmAberto > 0 ? "Em Aberto" : "Pago",
+        usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+        dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
       };
       setFaturamentos([...faturamentos, novoFaturamento]);
     }
@@ -161,7 +171,9 @@ var QuadraManagementSystem = () => {
       id: Date.now(),
       ...formRecebimento,
       faturamentoId: parseInt(formRecebimento.faturamentoId),
-      valor: parseFloat(formRecebimento.valor)
+      valor: parseFloat(formRecebimento.valor),
+      usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+      dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
     };
     setRecebimentos([...recebimentos, novoRecebimento]);
     setFaturamentos(faturamentos.map((f) => {
@@ -172,7 +184,11 @@ var QuadraManagementSystem = () => {
           ...f,
           valorRealRecebido: novoValorRecebido,
           valorEmAberto: Math.max(0, novoValorEmAberto),
-          status: novoValorEmAberto <= 0 ? "Pago" : "Em Aberto"
+          status: novoValorEmAberto <= 0 ? "Pago" : "Em Aberto",
+          ultimoRecebimento: {
+            usuario: usuarioLogado?.nome || "Sistema",
+            data: (/* @__PURE__ */ new Date()).toISOString()
+          }
         };
       }
       return f;
@@ -240,7 +256,10 @@ var QuadraManagementSystem = () => {
           id: editingItem.id,
           quadraId: parseInt(formReserva.quadraId),
           clienteId: parseInt(formReserva.clienteId),
-          valor: parseFloat(formReserva.valor) || valorCalculado
+          valor: parseFloat(formReserva.valor) || valorCalculado,
+          valorPago: parseFloat(formReserva.valorPago) || 0,
+          usuarioEdicao: usuarioLogado?.nome || "Sistema",
+          dataEdicao: (/* @__PURE__ */ new Date()).toISOString()
         } : r
       ));
     } else {
@@ -249,7 +268,10 @@ var QuadraManagementSystem = () => {
         ...formReserva,
         quadraId: parseInt(formReserva.quadraId),
         clienteId: parseInt(formReserva.clienteId),
-        valor: parseFloat(formReserva.valor) || valorCalculado
+        valor: parseFloat(formReserva.valor) || valorCalculado,
+        valorPago: parseFloat(formReserva.valorPago) || 0,
+        usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+        dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
       };
       setReservas([...reservas, novaReserva]);
     }
@@ -265,6 +287,10 @@ var QuadraManagementSystem = () => {
       horaFim: reserva.horaFim,
       valor: reserva.valor.toString(),
       status: reserva.status,
+      statusPagamento: reserva.statusPagamento || "Pendente",
+      valorPago: (reserva.valorPago || 0).toString(),
+      formaPagamento: reserva.formaPagamento || "",
+      dataPagamento: reserva.dataPagamento || "",
       observacoes: reserva.observacoes || ""
     });
     setModalType("reserva");
@@ -360,6 +386,10 @@ var QuadraManagementSystem = () => {
       horaFim: "",
       valor: "",
       status: "Confirmada",
+      statusPagamento: "Pendente",
+      valorPago: "",
+      formaPagamento: "",
+      dataPagamento: "",
       observacoes: ""
     });
     setFormAdmin({ nome: "", usuario: "", senha: "", cargo: "" });
@@ -612,7 +642,7 @@ var QuadraManagementSystem = () => {
   ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`, reserva.dataPagamento && ` \u2022 Data: ${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}`), reserva.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\xE7ado por: ", reserva.usuarioResponsavel, reserva.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\u2022 ", new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -627,10 +657,10 @@ var QuadraManagementSystem = () => {
       },
       /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
     )));
-  }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
+  }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Respons\xE1vel"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, reserva.usuarioResponsavel || "N/A"), reserva.dataLancamento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500" }, new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -731,14 +761,42 @@ var QuadraManagementSystem = () => {
     },
     /* @__PURE__ */ React.createElement(CreditCard, { className: "h-4 w-4" }),
     /* @__PURE__ */ React.createElement("span", null, "Registrar Recebimento")
-  ))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(FileText, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-blue-900" }, "Faturamento Total"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-blue-600" }, "R$ ", faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0).toFixed(2))))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(CheckCircle, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-green-900" }, "Valores Recebidos"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-green-600" }, "R$ ", faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0).toFixed(2))))), /* @__PURE__ */ React.createElement("div", { className: "bg-red-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(AlertCircle, { className: "h-6 w-6 md:h-8 md:w-8 text-red-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-red-900" }, "Em Aberto"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-red-600" }, "R$ ", faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0).toFixed(2))))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(TrendingUp, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-purple-900" }, "Taxa Recebimento"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-purple-600" }, (() => {
-    const total = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-    const recebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-    return total > 0 ? Math.round(recebido / total * 100) : 0;
+  ))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(FileText, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-blue-900" }, "Receita Total"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-blue-600" }, "R$ ", (() => {
+    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+    return (receitaReservas + receitaFaturamentos).toFixed(2);
+  })())))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(CheckCircle, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-green-900" }, "Valores Recebidos"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-green-600" }, "R$ ", (() => {
+    const reservasPagas = reservas.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+    return (reservasPagas + faturamentosRecebidos).toFixed(2);
+  })())))), /* @__PURE__ */ React.createElement("div", { className: "bg-red-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(AlertCircle, { className: "h-6 w-6 md:h-8 md:w-8 text-red-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-red-900" }, "Em Aberto"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-red-600" }, "R$ ", (() => {
+    const reservasEmAberto = reservas.reduce((acc, r) => {
+      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
+      return acc + Math.max(0, valorPendente);
+    }, 0);
+    const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+    return (reservasEmAberto + faturamentosEmAberto).toFixed(2);
+  })())))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(TrendingUp, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-purple-900" }, "Taxa Recebimento"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-purple-600" }, (() => {
+    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+    const totalReceita = receitaReservas + receitaFaturamentos;
+    const reservasRecebidas = reservas.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+    const totalRecebido = reservasRecebidas + faturamentosRecebidos;
+    return totalReceita > 0 ? Math.round(totalRecebido / totalReceita * 100) : 0;
   })(), "%"))))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Status dos Faturamentos"), /* @__PURE__ */ React.createElement(PieChart, { className: "h-5 w-5 text-blue-500" })), (() => {
-    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+    const totalFaturado = receitaReservas + receitaFaturamentos;
+    const reservasRecebidas = reservas.filter((r) => r.status === "Confirmada").reduce((acc, r) => acc + (r.valor || 0), 0);
+    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+    const totalRecebido = reservasRecebidas + faturamentosRecebidos;
+    const reservasEmAberto = reservas.reduce((acc, r) => {
+      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
+      return acc + Math.max(0, valorPendente);
+    }, 0);
+    const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+    const totalEmAberto = reservasEmAberto + faturamentosEmAberto;
     const percentualRecebido = totalFaturado > 0 ? totalRecebido / totalFaturado * 100 : 0;
     const percentualEmAberto = totalFaturado > 0 ? totalEmAberto / totalFaturado * 100 : 0;
     return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-center mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-32 h-32" }, /* @__PURE__ */ React.createElement("svg", { className: "w-32 h-32 transform -rotate-90", viewBox: "0 0 36 36" }, /* @__PURE__ */ React.createElement(
@@ -772,6 +830,13 @@ var QuadraManagementSystem = () => {
   })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Faturamento por M\xEAs"), /* @__PURE__ */ React.createElement(BarChart3, { className: "h-5 w-5 text-blue-500" })), (() => {
     const faturamentosPorMes = {};
     const recebimentosPorMes = {};
+    reservas.forEach((r) => {
+      if (r.data) {
+        const mes = r.data.substring(0, 7);
+        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (r.valor || 0);
+        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (r.valorPago || 0);
+      }
+    });
     faturamentos.forEach((f) => {
       if (f.data) {
         const mes = f.data.substring(0, 7);
@@ -811,6 +876,14 @@ var QuadraManagementSystem = () => {
       mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
       avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
     };
+    reservas.forEach((r) => {
+      const tipo = "avulso";
+      analise[tipo].faturado += r.valor || 0;
+      analise[tipo].recebido += r.valorPago || 0;
+      const valorEmAberto = (r.valor || 0) - (r.valorPago || 0);
+      analise[tipo].emAberto += Math.max(0, valorEmAberto);
+      analise[tipo].count += 1;
+    });
     faturamentos.forEach((f) => {
       const tipo = f.tipoLocacao?.toLowerCase() === "mensal" ? "mensal" : "avulso";
       analise[tipo].faturado += f.valor || 0;
@@ -926,7 +999,7 @@ var QuadraManagementSystem = () => {
     const matchSearch = !searchTerm || faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = !filtroData || faturamento.status === filtroData;
     return matchSearch && matchStatus;
-  }).map((faturamento) => /* @__PURE__ */ React.createElement("div", { key: faturamento.id, className: "bg-white rounded-lg shadow p-4 border-l-4 border-blue-500" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, faturamento.tipoQuadra, " - ", faturamento.mesLocacao), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-600" }, "R$ ", faturamento.valor?.toFixed(2))), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, faturamento.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Recebido: R$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Em Aberto: R$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Data: ", faturamento.data), /* @__PURE__ */ React.createElement("div", null, "Forma: ", faturamento.formaPagamento)), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+  }).map((faturamento) => /* @__PURE__ */ React.createElement("div", { key: faturamento.id, className: "bg-white rounded-lg shadow p-4 border-l-4 border-blue-500" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, faturamento.tipoQuadra, " - ", faturamento.mesLocacao), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-600" }, "R$ ", faturamento.valor?.toFixed(2))), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, faturamento.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Recebido: R$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Em Aberto: R$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Data: ", faturamento.data), /* @__PURE__ */ React.createElement("div", null, "Forma: ", faturamento.formaPagamento)), faturamento.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\xE7ado por: ", faturamento.usuarioResponsavel, faturamento.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\u2022 ", new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR"))), faturamento.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\xE7ado por: ", faturamento.usuarioResponsavel, faturamento.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\u2022 ", new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => editarFaturamento(faturamento),
@@ -940,11 +1013,11 @@ var QuadraManagementSystem = () => {
       className: "bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
     },
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  ))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "M\xEAs/Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Recebido"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Em Aberto"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, faturamentos.filter((faturamento) => {
+  ))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "M\xEAs/Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Recebido"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Em Aberto"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Respons\xE1vel"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, faturamentos.filter((faturamento) => {
     const matchSearch = !searchTerm || faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = !filtroData || faturamento.status === filtroData;
     return matchSearch && matchStatus;
-  }).map((faturamento) => /* @__PURE__ */ React.createElement("tr", { key: faturamento.id, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.data))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, faturamento.mesLocacao), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.tipoQuadra)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", faturamento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium" }, "R$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium" }, "R$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, faturamento.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
+  }).map((faturamento) => /* @__PURE__ */ React.createElement("tr", { key: faturamento.id, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.data))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, faturamento.mesLocacao), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.tipoQuadra)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", faturamento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium" }, "R$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium" }, "R$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, faturamento.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, faturamento.usuarioResponsavel || "N/A"), faturamento.dataLancamento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500" }, new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR")), faturamento.ultimoRecebimento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600" }, "\xDAltimo receb.: ", faturamento.ultimoRecebimento.usuario)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => editarFaturamento(faturamento),
@@ -960,7 +1033,7 @@ var QuadraManagementSystem = () => {
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
   )))))))), recebimentos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Hist\xF3rico de Recebimentos")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, recebimentos.slice(-10).reverse().map((recebimento) => {
     const faturamento = faturamentos.find((f) => f.id === recebimento.faturamentoId);
-    return /* @__PURE__ */ React.createElement("div", { key: recebimento.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, faturamento?.cliente || "Cliente n\xE3o encontrado"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, recebimento.data, " - ", recebimento.formaPagamento)), /* @__PURE__ */ React.createElement("div", { className: "text-right ml-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-green-600" }, "R$ ", recebimento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { key: recebimento.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, faturamento?.cliente || "Cliente n\xE3o encontrado"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, recebimento.data, " - ", recebimento.formaPagamento), recebimento.usuarioResponsavel && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "por: ", recebimento.usuarioResponsavel)), /* @__PURE__ */ React.createElement("div", { className: "text-right ml-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-green-600" }, "R$ ", recebimento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => excluirRecebimento(recebimento.id),
@@ -1009,15 +1082,7 @@ var QuadraManagementSystem = () => {
       disabled: usuariosAdmin.length <= 1
     },
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\xDAltimo administrador ativo - n\xE3o pode ser exclu\xEDdo por seguran\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "impressao" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Impress\xE3o Mensal"), /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row w-full sm:w-auto space-y-2 sm:space-y-0 sm:space-x-3" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "month",
-      value: mesImpressao,
-      onChange: (e) => setMesImpressao(e.target.value),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
-    }
-  ), /* @__PURE__ */ React.createElement(
+  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\xDAltimo administrador ativo - n\xE3o pode ser exclu\xEDdo por seguran\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "impressao" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Impress\xE3o Semanal por Quadra"), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => window.print(),
@@ -1025,48 +1090,113 @@ var QuadraManagementSystem = () => {
     },
     /* @__PURE__ */ React.createElement(Printer, { className: "h-4 w-4" }),
     /* @__PURE__ */ React.createElement("span", null, "Imprimir")
-  ))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-blue-900 text-sm" }, "Total de Reservas"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-blue-600" }, reservas.filter((r) => r.data.startsWith(mesImpressao)).length)), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-green-900 text-sm" }, "Receita Total"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-green-600" }, "R$ ", reservas.filter((r) => r.data.startsWith(mesImpressao)).reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-purple-900 text-sm" }, "Taxa Ocupa\xE7\xE3o"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-purple-600" }, (() => {
-    const diasNoMes = new Date(mesImpressao.split("-")[0], mesImpressao.split("-")[1], 0).getDate();
-    const totalSlotsPossiveis = diasNoMes * quadras.filter((q) => q.ativa).length;
-    const slotsOcupados = reservas.filter((r) => r.data.startsWith(mesImpressao) && r.status === "Confirmada").length;
-    return totalSlotsPossiveis > 0 ? Math.round(slotsOcupados / totalSlotsPossiveis * 100) : 0;
-  })(), "%"))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow overflow-hidden print:shadow-none" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 print:p-2" }, /* @__PURE__ */ React.createElement("div", { className: "text-center mb-4 md:mb-6 print:mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center mb-2 print:mb-1" }, /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-4 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-medium text-gray-700 mb-3" }, "Filtros para Impress\xE3o"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Semana de:"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      value: semanaImpressao,
+      onChange: (e) => setSemanaImpressao(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Quadra:"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: quadraImpressao,
+      onChange: (e) => setQuadraImpressao(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Todas as Quadras"),
+    quadras.filter((q) => q.ativa).map((quadra) => /* @__PURE__ */ React.createElement("option", { key: quadra.id, value: quadra.id }, quadra.nome))
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Per\xEDodo:"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: mesImpressao,
+      onChange: (e) => setMesImpressao(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    (() => {
+      const options = [];
+      const hoje2 = /* @__PURE__ */ new Date();
+      for (let i = -3; i <= 3; i++) {
+        const data = new Date(hoje2.getFullYear(), hoje2.getMonth() + i, 1);
+        const valor = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, "0")}`;
+        const texto = data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+        options.push(
+          /* @__PURE__ */ React.createElement("option", { key: valor, value: valor }, texto.charAt(0).toUpperCase() + texto.slice(1))
+        );
+      }
+      return options;
+    })()
+  ))))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4" }, (() => {
+    const dataInicio = new Date(semanaImpressao);
+    const dataFim = new Date(dataInicio);
+    dataFim.setDate(dataInicio.getDate() + 6);
+    const reservasSemana = reservas.filter((r) => {
+      const dataReserva = new Date(r.data);
+      return dataReserva >= dataInicio && dataReserva <= dataFim && (!quadraImpressao || r.quadraId == quadraImpressao);
+    });
+    const quadrasAtivas = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+    return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-blue-900 text-sm" }, "Reservas da Semana"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-blue-600" }, reservasSemana.length)), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-green-900 text-sm" }, "Receita Semanal"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-green-600" }, "R$ ", reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-purple-900 text-sm" }, "Quadra(s) Selecionada(s)"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-purple-600" }, quadrasAtivas.length)), /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-orange-900 text-sm" }, "Taxa Ocupa\xE7\xE3o"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-orange-600" }, (() => {
+      const totalSlotsPossiveis = 7 * quadrasAtivas.length * 12;
+      const slotsOcupados = reservasSemana.filter((r) => r.status === "Confirmada").length;
+      return totalSlotsPossiveis > 0 ? Math.round(slotsOcupados / totalSlotsPossiveis * 100) : 0;
+    })(), "%")));
+  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow overflow-hidden print:shadow-none" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 print:p-2" }, /* @__PURE__ */ React.createElement("div", { className: "text-center mb-4 md:mb-6 print:mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center mb-2 print:mb-1" }, /* @__PURE__ */ React.createElement(
     "img",
     {
       src: "assets/QnQ2IRKmq0zfR25_j1Nkf.png",
       alt: "Esporte Clube Jurema",
       className: "h-12 w-12 md:h-16 md:w-16 rounded-full bg-white p-1 mr-3 print:h-10 print:w-10"
     }
-  ), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "text-lg md:text-2xl font-bold text-green-700 print:text-lg" }, "ESPORTE CLUBE JUREMA"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-green-600 print:text-sm" }, "Valinhos - Fundado em 03/09/2006"))), /* @__PURE__ */ React.createElement("h2", { className: "text-base md:text-lg font-semibold text-gray-800 print:text-base" }, "Hor\xE1rios - ", (/* @__PURE__ */ new Date(mesImpressao + "-01")).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase())), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50 print:bg-gray-100" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-1 md:px-2 py-1 text-left font-medium" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-1 md:px-2 py-1 text-left font-medium" }, "Dia"), quadras.filter((q) => q.ativa).map((quadra) => /* @__PURE__ */ React.createElement("th", { key: quadra.id, className: "border border-gray-300 px-1 md:px-2 py-1 text-left font-medium" }, /* @__PURE__ */ React.createElement("div", { className: "truncate" }, quadra.nome.split(" ")[0]))))), /* @__PURE__ */ React.createElement("tbody", null, (() => {
-    const [ano, mes] = mesImpressao.split("-");
-    const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-    const dias = [];
-    for (let dia = 1; dia <= diasNoMes; dia++) {
-      const dataCompleta = `${mesImpressao}-${dia.toString().padStart(2, "0")}`;
-      const dataObj = new Date(dataCompleta);
-      const diaSemana = dataObj.toLocaleDateString("pt-BR", { weekday: "short" });
-      const reservasDoDia = reservas.filter((r) => r.data === dataCompleta);
-      dias.push(
-        /* @__PURE__ */ React.createElement("tr", { key: dia, className: `${dia % 2 === 0 ? "bg-gray-50" : "bg-white"} print:break-inside-avoid` }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-1 md:px-2 py-1 font-medium" }, dia.toString().padStart(2, "0")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-1 md:px-2 py-1" }, diaSemana), quadras.filter((q) => q.ativa).map((quadra) => {
-          const reservasQuadra = reservasDoDia.filter((r) => r.quadraId === quadra.id);
-          return /* @__PURE__ */ React.createElement("td", { key: quadra.id, className: "border border-gray-300 px-1 py-1" }, reservasQuadra.map((reserva, index) => {
-            const cliente = clientes.find((c) => c.id === reserva.clienteId);
-            return /* @__PURE__ */ React.createElement(
-              "div",
-              {
-                key: index,
-                className: `mb-1 p-1 rounded text-xs ${reserva.status === "Confirmada" ? "bg-green-100" : reserva.status === "Pendente" ? "bg-yellow-100" : "bg-red-100"}`
-              },
-              /* @__PURE__ */ React.createElement("div", { className: "font-medium text-xs" }, reserva.horaInicio, "-", reserva.horaFim),
-              /* @__PURE__ */ React.createElement("div", { className: "truncate text-xs" }, cliente?.nome?.split(" ")[0] || "N/A"),
-              /* @__PURE__ */ React.createElement("div", { className: "text-gray-600 text-xs" }, "R$ ", reserva.valor?.toFixed(0))
-            );
-          }), reservasQuadra.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-gray-400 text-center text-xs" }, "-"));
-        }))
-      );
+  ), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "text-lg md:text-2xl font-bold text-green-700 print:text-lg" }, "ESPORTE CLUBE JUREMA"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-green-600 print:text-sm" }, "Valinhos - Fundado em 03/09/2006"), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600 print:text-xs mt-1" }, "Sistema de Gest\xE3o com Controle de Usu\xE1rios - Programa\xE7\xE3o Semanal"))), (() => {
+    const dataInicio = new Date(semanaImpressao);
+    const dataFim = new Date(dataInicio);
+    dataFim.setDate(dataInicio.getDate() + 6);
+    const quadraSelecionada = quadraImpressao ? quadras.find((q) => q.id == quadraImpressao) : null;
+    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-base md:text-lg font-semibold text-gray-800 print:text-base" }, quadraSelecionada ? `${quadraSelecionada.nome} - ` : "Todas as Quadras - ", "Semana de ", dataInicio.toLocaleDateString("pt-BR"), " a ", dataFim.toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 print:text-sm mt-1" }, new Date(semanaImpressao).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase()));
+  })()), (() => {
+    const dataInicio = new Date(semanaImpressao);
+    const quadrasParaExibir = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+    const diasSemana = [];
+    for (let i = 0; i < 7; i++) {
+      const data = new Date(dataInicio);
+      data.setDate(dataInicio.getDate() + i);
+      diasSemana.push(data);
     }
-    return dias;
-  })()))), /* @__PURE__ */ React.createElement("div", { className: "mt-4 md:mt-6 print:mt-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm" }, "Legenda"), /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap gap-3 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 md:w-4 md:h-4 bg-green-100 rounded mr-1 md:mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Confirmada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 md:w-4 md:h-4 bg-yellow-100 rounded mr-1 md:mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 md:w-4 md:h-4 bg-red-100 rounded mr-1 md:mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Cancelada")))))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-gray-800 text-center py-3 mt-8 border-t border-gray-700" }, /* @__PURE__ */ React.createElement("div", { className: "max-w-7xl mx-auto px-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-300" }, "Sistema Online")), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\u2022"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-300" }, "\xA9 2025 ", /* @__PURE__ */ React.createElement("span", { className: "font-medium text-green-400" }, "PauloCunhaMKT"), " Solu\xE7\xF5es TI"), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\u2022"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-700 px-2 py-1 rounded text-gray-400" }, "v2.1.0"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, "Build 2025.01"))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Sistema de Gest\xE3o Esportiva \u2022 Desenvolvido especialmente para o Esporte Clube Jurema"))), showModal && /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium" }, editingItem ? "Editar" : "Novo", " ", modalType === "quadra" ? "Quadra" : modalType === "cliente" ? "Cliente" : modalType === "admin" ? "Administrador" : modalType === "faturamento" ? "Faturamento" : modalType === "recebimento" ? "Recebimento" : "Reserva"), /* @__PURE__ */ React.createElement("button", { onClick: fecharModal }, /* @__PURE__ */ React.createElement(X, { className: "h-5 w-5" }))), modalType === "quadra" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
+    return quadrasParaExibir.map((quadra) => /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "mb-6 print:mb-4 print:break-inside-avoid" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-semibold text-blue-700 mb-3 print:text-base border-b border-blue-200 pb-2" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-blue-50 print:bg-gray-100" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-20" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-16" }, "Dia"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium" }, "Hor\xE1rios e Reservas"))), /* @__PURE__ */ React.createElement("tbody", null, diasSemana.map((data, index) => {
+      const dataStr = data.toISOString().split("T")[0];
+      const diaSemana = data.toLocaleDateString("pt-BR", { weekday: "long" });
+      const reservasDoDia = reservas.filter(
+        (r) => r.data === dataStr && r.quadraId === quadra.id
+      ).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+      return /* @__PURE__ */ React.createElement("tr", { key: index, className: `${index % 2 === 0 ? "bg-white" : "bg-gray-50"} print:break-inside-avoid` }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 font-medium text-blue-600" }, data.getDate().toString().padStart(2, "0"), "/", (data.getMonth() + 1).toString().padStart(2, "0")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 text-gray-700 capitalize" }, diaSemana), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2" }, reservasDoDia.length > 0 ? /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, reservasDoDia.map((reserva, idx) => {
+        const cliente = clientes.find((c) => c.id === reserva.clienteId);
+        return /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            key: idx,
+            className: `p-2 rounded border-l-4 ${reserva.status === "Confirmada" ? "bg-green-50 border-green-400" : reserva.status === "Pendente" ? "bg-yellow-50 border-yellow-400" : "bg-red-50 border-red-400"}`
+          },
+          /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap items-center gap-2 text-xs" }, /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-700" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-800" }, cliente?.nome || "Cliente N/A"), /* @__PURE__ */ React.createElement("span", { className: "text-green-600 font-medium" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 rounded-full text-xs font-medium ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)),
+          reserva.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Agendado por: ", /* @__PURE__ */ React.createElement("strong", { className: "ml-1" }, reserva.usuarioResponsavel), reserva.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2 text-gray-400" }, "\u2022 ", new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))),
+          reserva.observacoes && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-600 italic" }, "Obs: ", reserva.observacoes)
+        );
+      })) : /* @__PURE__ */ React.createElement("div", { className: "text-center text-gray-400 py-4 italic" }, "Nenhuma reserva para este dia")));
+    })))), /* @__PURE__ */ React.createElement("div", { className: "mt-3 p-3 bg-blue-50 rounded border print:bg-gray-100" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 text-xs" }, (() => {
+      const reservasQuadra = reservas.filter((r) => {
+        const dataReserva = new Date(r.data);
+        const dataInicio2 = new Date(semanaImpressao);
+        const dataFim = new Date(dataInicio2);
+        dataFim.setDate(dataInicio2.getDate() + 6);
+        return r.quadraId === quadra.id && dataReserva >= dataInicio2 && dataReserva <= dataFim;
+      });
+      const totalReservas = reservasQuadra.length;
+      const reservasConfirmadas = reservasQuadra.filter((r) => r.status === "Confirmada").length;
+      const receitaTotal = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
+      const receitaPaga = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Total de Reservas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, totalReservas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Confirmadas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, reservasConfirmadas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Receita Total:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, "R$ ", receitaTotal.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Valor Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, "R$ ", receitaPaga.toFixed(2))));
+    })()))));
+  })(), /* @__PURE__ */ React.createElement("div", { className: "mt-4 md:mt-6 print:mt-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm" }, "Legenda e Informa\xE7\xF5es"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Status das Reservas:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-100 border-l-4 border-green-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Confirmada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-yellow-100 border-l-4 border-yellow-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-red-100 border-l-4 border-red-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Cancelada")))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Informa\xE7\xF5es por Reserva:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, /* @__PURE__ */ React.createElement("div", null, "\u2022 Hor\xE1rio de in\xEDcio e fim"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Nome completo do cliente"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Valor da loca\xE7\xE3o"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Status da reserva"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Usu\xE1rio respons\xE1vel pelo agendamento"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Data do lan\xE7amento"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Observa\xE7\xF5es (quando houver)"))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Resumo por Quadra:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, /* @__PURE__ */ React.createElement("div", null, "\u2022 Total de reservas na semana"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Quantidade de reservas confirmadas"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Receita total esperada"), /* @__PURE__ */ React.createElement("div", null, "\u2022 Valor efetivamente recebido")))), /* @__PURE__ */ React.createElement("div", { className: "mt-4 p-3 bg-green-50 border border-green-200 rounded print:bg-gray-100" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-green-700 print:text-gray-700" }, /* @__PURE__ */ React.createElement("strong", null, "Nota:"), " Este relat\xF3rio apresenta a programa\xE7\xE3o semanal detalhada por quadra, incluindo informa\xE7\xF5es completas de cada reserva e controle de responsabilidade por agendamento. Ideal para controle operacional e acompanhamento de ocupa\xE7\xE3o."))))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-gray-800 text-center py-3 mt-8 border-t border-gray-700" }, /* @__PURE__ */ React.createElement("div", { className: "max-w-7xl mx-auto px-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-300" }, "Sistema Online")), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\u2022"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-300" }, "\xA9 2025 ", /* @__PURE__ */ React.createElement("span", { className: "font-medium text-green-400" }, "PauloCunhaMKT"), " Solu\xE7\xF5es TI"), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\u2022"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-700 px-2 py-1 rounded text-gray-400" }, "v2.1.0"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, "Build 2025.01"))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Sistema de Gest\xE3o Esportiva \u2022 Desenvolvido especialmente para o Esporte Clube Jurema"))), showModal && /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium" }, editingItem ? "Editar" : "Novo", " ", modalType === "quadra" ? "Quadra" : modalType === "cliente" ? "Cliente" : modalType === "admin" ? "Administrador" : modalType === "faturamento" ? "Faturamento" : modalType === "recebimento" ? "Recebimento" : "Reserva"), /* @__PURE__ */ React.createElement("button", { onClick: fecharModal }, /* @__PURE__ */ React.createElement(X, { className: "h-5 w-5" }))), modalType === "quadra" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -1196,17 +1326,83 @@ var QuadraManagementSystem = () => {
       onChange: (e) => setFormReserva({ ...formReserva, valor: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  ), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formReserva.status,
       onChange: (e) => setFormReserva({ ...formReserva, status: e.target.value }),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
     /* @__PURE__ */ React.createElement("option", { value: "Confirmada" }, "Confirmada"),
     /* @__PURE__ */ React.createElement("option", { value: "Pendente" }, "Pendente"),
     /* @__PURE__ */ React.createElement("option", { value: "Cancelada" }, "Cancelada")
   ), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: formReserva.statusPagamento,
+      onChange: (e) => {
+        const novoStatus = e.target.value;
+        setFormReserva({
+          ...formReserva,
+          statusPagamento: novoStatus,
+          // Auto-ajustar valorPago baseado no status
+          valorPago: novoStatus === "Pago" && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
+          dataPagamento: novoStatus !== "Pendente" && !formReserva.dataPagamento ? (/* @__PURE__ */ new Date()).toISOString().split("T")[0] : formReserva.dataPagamento
+        });
+      },
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "Pendente" }, "Pendente"),
+    /* @__PURE__ */ React.createElement("option", { value: "Parcial" }, "Parcial"),
+    /* @__PURE__ */ React.createElement("option", { value: "Pago" }, "Pago")
+  )), formReserva.statusPagamento !== "Pendente" && /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 border border-green-200 rounded-lg p-3 space-y-3" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800" }, "Informa\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
+      placeholder: "Valor pago",
+      value: formReserva.valorPago,
+      onChange: (e) => {
+        const valorPago = parseFloat(e.target.value) || 0;
+        const valorTotal = parseFloat(formReserva.valor) || 0;
+        let novoStatus = "Pendente";
+        if (valorPago === 0) {
+          novoStatus = "Pendente";
+        } else if (valorPago >= valorTotal) {
+          novoStatus = "Pago";
+        } else {
+          novoStatus = "Parcial";
+        }
+        setFormReserva({
+          ...formReserva,
+          valorPago: e.target.value,
+          statusPagamento: novoStatus
+        });
+      },
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  ), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      value: formReserva.dataPagamento,
+      onChange: (e) => setFormReserva({ ...formReserva, dataPagamento: e.target.value }),
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  )), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: formReserva.formaPagamento,
+      onChange: (e) => setFormReserva({ ...formReserva, formaPagamento: e.target.value }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
+    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
+    /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
+    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
+    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o"),
+    /* @__PURE__ */ React.createElement("option", { value: "Cheque" }, "Cheque")
+  ), formReserva.valorPago && formReserva.valor && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo:"), " R$ ", ((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2), parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && " \u2713 Pago")), /* @__PURE__ */ React.createElement(
     "textarea",
     {
       placeholder: "Observa\xE7\xF5es (opcional)",

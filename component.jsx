@@ -44,6 +44,8 @@ const QuadraManagementSystem = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filtroData, setFiltroData] = useState('');
   const [mesImpressao, setMesImpressao] = useState(new Date().toISOString().slice(0, 7));
+  const [quadraImpressao, setQuadraImpressao] = useState('');
+  const [semanaImpressao, setSemanaImpressao] = useState(new Date().toISOString().slice(0, 10));
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Formulários
@@ -57,6 +59,10 @@ const QuadraManagementSystem = () => {
     horaFim: '',
     valor: '',
     status: 'Confirmada',
+    statusPagamento: 'Pendente',
+    valorPago: '',
+    formaPagamento: '',
+    dataPagamento: '',
     observacoes: ''
   });
   const [formAdmin, setFormAdmin] = useState({ nome: '', usuario: '', senha: '', cargo: '' });
@@ -133,7 +139,9 @@ const QuadraManagementSystem = () => {
           valor: valorTotal,
           valorRecebido: valorRecebido,
           valorEmAberto: valorEmAberto,
-          valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido
+          valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido,
+          usuarioEdicao: usuarioLogado?.nome || 'Sistema',
+          dataEdicao: new Date().toISOString()
         } : f
       ));
     } else {
@@ -144,7 +152,9 @@ const QuadraManagementSystem = () => {
         valorRecebido: valorRecebido,
         valorEmAberto: valorEmAberto,
         valorRealRecebido: parseFloat(formFaturamento.valorRealRecebido) || valorRecebido,
-        status: valorEmAberto > 0 ? 'Em Aberto' : 'Pago'
+        status: valorEmAberto > 0 ? 'Em Aberto' : 'Pago',
+        usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+        dataLancamento: new Date().toISOString()
       };
       setFaturamentos([...faturamentos, novoFaturamento]);
     }
@@ -186,7 +196,9 @@ const QuadraManagementSystem = () => {
       id: Date.now(),
       ...formRecebimento,
       faturamentoId: parseInt(formRecebimento.faturamentoId),
-      valor: parseFloat(formRecebimento.valor)
+      valor: parseFloat(formRecebimento.valor),
+      usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+      dataLancamento: new Date().toISOString()
     };
     
     setRecebimentos([...recebimentos, novoRecebimento]);
@@ -200,7 +212,11 @@ const QuadraManagementSystem = () => {
           ...f,
           valorRealRecebido: novoValorRecebido,
           valorEmAberto: Math.max(0, novoValorEmAberto),
-          status: novoValorEmAberto <= 0 ? 'Pago' : 'Em Aberto'
+          status: novoValorEmAberto <= 0 ? 'Pago' : 'Em Aberto',
+          ultimoRecebimento: {
+            usuario: usuarioLogado?.nome || 'Sistema',
+            data: new Date().toISOString()
+          }
         };
       }
       return f;
@@ -279,7 +295,10 @@ const QuadraManagementSystem = () => {
           id: editingItem.id,
           quadraId: parseInt(formReserva.quadraId),
           clienteId: parseInt(formReserva.clienteId),
-          valor: parseFloat(formReserva.valor) || valorCalculado
+          valor: parseFloat(formReserva.valor) || valorCalculado,
+          valorPago: parseFloat(formReserva.valorPago) || 0,
+          usuarioEdicao: usuarioLogado?.nome || 'Sistema',
+          dataEdicao: new Date().toISOString()
         } : r
       ));
     } else {
@@ -288,7 +307,10 @@ const QuadraManagementSystem = () => {
         ...formReserva,
         quadraId: parseInt(formReserva.quadraId),
         clienteId: parseInt(formReserva.clienteId),
-        valor: parseFloat(formReserva.valor) || valorCalculado
+        valor: parseFloat(formReserva.valor) || valorCalculado,
+        valorPago: parseFloat(formReserva.valorPago) || 0,
+        usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+        dataLancamento: new Date().toISOString()
       };
       setReservas([...reservas, novaReserva]);
     }
@@ -305,6 +327,10 @@ const QuadraManagementSystem = () => {
       horaFim: reserva.horaFim,
       valor: reserva.valor.toString(),
       status: reserva.status,
+      statusPagamento: reserva.statusPagamento || 'Pendente',
+      valorPago: (reserva.valorPago || 0).toString(),
+      formaPagamento: reserva.formaPagamento || '',
+      dataPagamento: reserva.dataPagamento || '',
       observacoes: reserva.observacoes || ''
     });
     setModalType('reserva');
@@ -417,6 +443,10 @@ const QuadraManagementSystem = () => {
       horaFim: '',
       valor: '',
       status: 'Confirmada',
+      statusPagamento: 'Pendente',
+      valorPago: '',
+      formaPagamento: '',
+      dataPagamento: '',
       observacoes: ''
     });
     setFormAdmin({ nome: '', usuario: '', senha: '', cargo: '' });
@@ -919,6 +949,40 @@ const QuadraManagementSystem = () => {
                         <div>Início: {reserva.horaInicio}</div>
                         <div>Fim: {reserva.horaFim}</div>
                       </div>
+                      
+                      {/* Status de Pagamento */}
+                      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                        <div className="flex items-center">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
+                            reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {reserva.statusPagamento || 'Pendente'}
+                          </span>
+                        </div>
+                        <div className="text-green-600 font-medium">
+                          Pago: R$ {(reserva.valorPago || 0).toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {reserva.valorPago > 0 && (
+                        <div className="text-xs text-blue-600 mb-2">
+                          {reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`}
+                          {reserva.dataPagamento && ` • Data: ${new Date(reserva.dataPagamento).toLocaleDateString('pt-BR')}`}
+                        </div>
+                      )}
+                      {reserva.usuarioResponsavel && (
+                        <div className="text-xs text-gray-500 mb-2 flex items-center">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Lançado por: {reserva.usuarioResponsavel}
+                          {reserva.dataLancamento && (
+                            <span className="ml-2">
+                              • {new Date(reserva.dataLancamento).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="flex space-x-2">
                         <button
                           onClick={() => editarReserva(reserva)}
@@ -954,6 +1018,8 @@ const QuadraManagementSystem = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pagamento</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsável</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                       </tr>
                     </thead>
@@ -977,6 +1043,33 @@ const QuadraManagementSystem = () => {
                               }`}>
                                 {reserva.status}
                               </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm">
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
+                                  reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {reserva.statusPagamento || 'Pendente'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-green-600 font-medium">
+                                R$ {(reserva.valorPago || 0).toFixed(2)}
+                                {reserva.valorPago > 0 && reserva.formaPagamento && (
+                                  <span className="text-gray-500"> • {reserva.formaPagamento}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {reserva.usuarioResponsavel || 'N/A'}
+                              </div>
+                              {reserva.dataLancamento && (
+                                <div className="text-xs text-gray-500">
+                                  {new Date(reserva.dataLancamento).toLocaleDateString('pt-BR')}
+                                </div>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <button
@@ -1176,9 +1269,13 @@ const QuadraManagementSystem = () => {
                   <div className="flex items-center">
                     <FileText className="h-6 w-6 md:h-8 md:w-8 text-blue-500 mr-2 md:mr-3" />
                     <div>
-                      <p className="text-xs md:text-sm font-medium text-blue-900">Faturamento Total</p>
+                      <p className="text-xs md:text-sm font-medium text-blue-900">Receita Total</p>
                       <p className="text-sm md:text-xl font-bold text-blue-600">
-                        R$ {faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0).toFixed(2)}
+                        R$ {(() => {
+                          const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+                          const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                          return (receitaReservas + receitaFaturamentos).toFixed(2);
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -1190,7 +1287,11 @@ const QuadraManagementSystem = () => {
                     <div>
                       <p className="text-xs md:text-sm font-medium text-green-900">Valores Recebidos</p>
                       <p className="text-sm md:text-xl font-bold text-green-600">
-                        R$ {faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0).toFixed(2)}
+                        R$ {(() => {
+                          const reservasPagas = reservas.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+                          const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                          return (reservasPagas + faturamentosRecebidos).toFixed(2);
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -1202,7 +1303,14 @@ const QuadraManagementSystem = () => {
                     <div>
                       <p className="text-xs md:text-sm font-medium text-red-900">Em Aberto</p>
                       <p className="text-sm md:text-xl font-bold text-red-600">
-                        R$ {faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0).toFixed(2)}
+                        R$ {(() => {
+                          const reservasEmAberto = reservas.reduce((acc, r) => {
+                            const valorPendente = (r.valor || 0) - (r.valorPago || 0);
+                            return acc + Math.max(0, valorPendente);
+                          }, 0);
+                          const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+                          return (reservasEmAberto + faturamentosEmAberto).toFixed(2);
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -1215,9 +1323,15 @@ const QuadraManagementSystem = () => {
                       <p className="text-xs md:text-sm font-medium text-purple-900">Taxa Recebimento</p>
                       <p className="text-sm md:text-xl font-bold text-purple-600">
                         {(() => {
-                          const total = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-                          const recebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-                          return total > 0 ? Math.round((recebido / total) * 100) : 0;
+                          const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+                          const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                          const totalReceita = receitaReservas + receitaFaturamentos;
+                          
+                          const reservasRecebidas = reservas.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+                          const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                          const totalRecebido = reservasRecebidas + faturamentosRecebidos;
+                          
+                          return totalReceita > 0 ? Math.round((totalRecebido / totalReceita) * 100) : 0;
                         })()}%
                       </p>
                     </div>
@@ -1235,9 +1349,20 @@ const QuadraManagementSystem = () => {
                   </div>
                   
                   {(() => {
-                    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-                    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-                    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+                    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+                    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
+                    const totalFaturado = receitaReservas + receitaFaturamentos;
+                    
+                    const reservasRecebidas = reservas.filter(r => r.status === 'Confirmada').reduce((acc, r) => acc + (r.valor || 0), 0);
+                    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
+                    const totalRecebido = reservasRecebidas + faturamentosRecebidos;
+                    
+                    const reservasEmAberto = reservas.reduce((acc, r) => {
+                      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
+                      return acc + Math.max(0, valorPendente);
+                    }, 0);
+                    const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
+                    const totalEmAberto = reservasEmAberto + faturamentosEmAberto;
                     
                     const percentualRecebido = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
                     const percentualEmAberto = totalFaturado > 0 ? (totalEmAberto / totalFaturado) * 100 : 0;
@@ -1326,10 +1451,20 @@ const QuadraManagementSystem = () => {
                   </div>
                   
                   {(() => {
-                    // Agrupar faturamentos por mês
+                    // Agrupar receitas por mês (reservas + faturamentos)
                     const faturamentosPorMes = {};
                     const recebimentosPorMes = {};
                     
+                    // Adicionar receitas das reservas
+                    reservas.forEach(r => {
+                      if (r.data) {
+                        const mes = r.data.substring(0, 7); // YYYY-MM
+                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (r.valor || 0);
+                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (r.valorPago || 0);
+                      }
+                    });
+                    
+                    // Adicionar faturamentos administrativos
                     faturamentos.forEach(f => {
                       if (f.data) {
                         const mes = f.data.substring(0, 7); // YYYY-MM
@@ -1411,6 +1546,17 @@ const QuadraManagementSystem = () => {
                     avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
                   };
                   
+                  // Analisar reservas (considerando como avulsas se não especificado)
+                  reservas.forEach(r => {
+                    const tipo = 'avulso'; // Reservas são geralmente avulsas
+                    analise[tipo].faturado += r.valor || 0;
+                    analise[tipo].recebido += r.valorPago || 0;
+                    const valorEmAberto = (r.valor || 0) - (r.valorPago || 0);
+                    analise[tipo].emAberto += Math.max(0, valorEmAberto);
+                    analise[tipo].count += 1;
+                  });
+                  
+                  // Analisar faturamentos administrativos
                   faturamentos.forEach(f => {
                     const tipo = f.tipoLocacao?.toLowerCase() === 'mensal' ? 'mensal' : 'avulso';
                     analise[tipo].faturado += f.valor || 0;
@@ -1843,6 +1989,28 @@ const QuadraManagementSystem = () => {
                         <div>Data: {faturamento.data}</div>
                         <div>Forma: {faturamento.formaPagamento}</div>
                       </div>
+                      {faturamento.usuarioResponsavel && (
+                        <div className="text-xs text-gray-500 mb-2 flex items-center">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Lançado por: {faturamento.usuarioResponsavel}
+                          {faturamento.dataLancamento && (
+                            <span className="ml-2">
+                              • {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {faturamento.usuarioResponsavel && (
+                        <div className="text-xs text-gray-500 mb-2 flex items-center">
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Lançado por: {faturamento.usuarioResponsavel}
+                          {faturamento.dataLancamento && (
+                            <span className="ml-2">
+                              • {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="flex space-x-2">
                         <button
@@ -1874,6 +2042,7 @@ const QuadraManagementSystem = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recebido</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Em Aberto</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsável</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                       </tr>
                     </thead>
@@ -1913,6 +2082,21 @@ const QuadraManagementSystem = () => {
                                 {faturamento.status}
                               </span>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {faturamento.usuarioResponsavel || 'N/A'}
+                              </div>
+                              {faturamento.dataLancamento && (
+                                <div className="text-xs text-gray-500">
+                                  {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
+                                </div>
+                              )}
+                              {faturamento.ultimoRecebimento && (
+                                <div className="text-xs text-blue-600">
+                                  Último receb.: {faturamento.ultimoRecebimento.usuario}
+                                </div>
+                              )}
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <button
                                 onClick={() => editarFaturamento(faturamento)}
@@ -1951,6 +2135,12 @@ const QuadraManagementSystem = () => {
                               <p className="text-sm text-gray-600 truncate">
                                 {recebimento.data} - {recebimento.formaPagamento}
                               </p>
+                              {recebimento.usuarioResponsavel && (
+                                <p className="text-xs text-gray-500 flex items-center">
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                  por: {recebimento.usuarioResponsavel}
+                                </p>
+                              )}
                             </div>
                             <div className="text-right ml-2">
                               <p className="font-medium text-green-600">R$ {recebimento.valor?.toFixed(2)}</p>
@@ -2134,15 +2324,9 @@ const QuadraManagementSystem = () => {
           {/* Impressão */}
           {activeTab === 'impressao' && (
             <div className="space-y-4 md:space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Impressão Mensal</h2>
-                <div className="flex flex-col sm:flex-row w-full sm:w-auto space-y-2 sm:space-y-0 sm:space-x-3">
-                  <input
-                    type="month"
-                    value={mesImpressao}
-                    onChange={(e) => setMesImpressao(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  />
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900">Impressão Semanal por Quadra</h2>
                   <button
                     onClick={() => window.print()}
                     className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
@@ -2151,39 +2335,115 @@ const QuadraManagementSystem = () => {
                     <span>Imprimir</span>
                   </button>
                 </div>
+                
+                {/* Filtros de Impressão */}
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Filtros para Impressão</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Semana de:</label>
+                      <input
+                        type="date"
+                        value={semanaImpressao}
+                        onChange={(e) => setSemanaImpressao(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Quadra:</label>
+                      <select
+                        value={quadraImpressao}
+                        onChange={(e) => setQuadraImpressao(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        <option value="">Todas as Quadras</option>
+                        {quadras.filter(q => q.ativa).map(quadra => (
+                          <option key={quadra.id} value={quadra.id}>{quadra.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Período:</label>
+                      <select
+                        value={mesImpressao}
+                        onChange={(e) => setMesImpressao(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        {(() => {
+                          const options = [];
+                          const hoje = new Date();
+                          for (let i = -3; i <= 3; i++) {
+                            const data = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+                            const valor = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+                            const texto = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                            options.push(
+                              <option key={valor} value={valor}>
+                                {texto.charAt(0).toUpperCase() + texto.slice(1)}
+                              </option>
+                            );
+                          }
+                          return options;
+                        })()}
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Resumo Mobile */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-                <div className="bg-blue-50 p-3 md:p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 text-sm">Total de Reservas</h4>
-                  <p className="text-xl md:text-2xl font-bold text-blue-600">
-                    {reservas.filter(r => r.data.startsWith(mesImpressao)).length}
-                  </p>
-                </div>
-                <div className="bg-green-50 p-3 md:p-4 rounded-lg">
-                  <h4 className="font-medium text-green-900 text-sm">Receita Total</h4>
-                  <p className="text-xl md:text-2xl font-bold text-green-600">
-                    R$ {reservas
-                      .filter(r => r.data.startsWith(mesImpressao))
-                      .reduce((acc, r) => acc + (r.valor || 0), 0)
-                      .toFixed(2)}
-                  </p>
-                </div>
-                <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
-                  <h4 className="font-medium text-purple-900 text-sm">Taxa Ocupação</h4>
-                  <p className="text-xl md:text-2xl font-bold text-purple-600">
-                    {(() => {
-                      const diasNoMes = new Date(mesImpressao.split('-')[0], mesImpressao.split('-')[1], 0).getDate();
-                      const totalSlotsPossiveis = diasNoMes * quadras.filter(q => q.ativa).length;
-                      const slotsOcupados = reservas.filter(r => r.data.startsWith(mesImpressao) && r.status === 'Confirmada').length;
-                      return totalSlotsPossiveis > 0 ? Math.round((slotsOcupados / totalSlotsPossiveis) * 100) : 0;
-                    })()}%
-                  </p>
-                </div>
+              {/* Resumo da Semana */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4">
+                {(() => {
+                  // Calcular dados da semana selecionada
+                  const dataInicio = new Date(semanaImpressao);
+                  const dataFim = new Date(dataInicio);
+                  dataFim.setDate(dataInicio.getDate() + 6);
+                  
+                  const reservasSemana = reservas.filter(r => {
+                    const dataReserva = new Date(r.data);
+                    return dataReserva >= dataInicio && dataReserva <= dataFim &&
+                           (!quadraImpressao || r.quadraId == quadraImpressao);
+                  });
+                  
+                  const quadrasAtivas = quadraImpressao ? 
+                    quadras.filter(q => q.id == quadraImpressao) : 
+                    quadras.filter(q => q.ativa);
+                  
+                  return (
+                    <>
+                      <div className="bg-blue-50 p-3 md:p-4 rounded-lg">
+                        <h4 className="font-medium text-blue-900 text-sm">Reservas da Semana</h4>
+                        <p className="text-xl md:text-2xl font-bold text-blue-600">
+                          {reservasSemana.length}
+                        </p>
+                      </div>
+                      <div className="bg-green-50 p-3 md:p-4 rounded-lg">
+                        <h4 className="font-medium text-green-900 text-sm">Receita Semanal</h4>
+                        <p className="text-xl md:text-2xl font-bold text-green-600">
+                          R$ {reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 p-3 md:p-4 rounded-lg">
+                        <h4 className="font-medium text-purple-900 text-sm">Quadra(s) Selecionada(s)</h4>
+                        <p className="text-xl md:text-2xl font-bold text-purple-600">
+                          {quadrasAtivas.length}
+                        </p>
+                      </div>
+                      <div className="bg-orange-50 p-3 md:p-4 rounded-lg">
+                        <h4 className="font-medium text-orange-900 text-sm">Taxa Ocupação</h4>
+                        <p className="text-xl md:text-2xl font-bold text-orange-600">
+                          {(() => {
+                            const totalSlotsPossiveis = 7 * quadrasAtivas.length * 12; // 7 dias, 12 slots por dia
+                            const slotsOcupados = reservasSemana.filter(r => r.status === 'Confirmada').length;
+                            return totalSlotsPossiveis > 0 ? Math.round((slotsOcupados / totalSlotsPossiveis) * 100) : 0;
+                          })()}%
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
-              {/* Tabela Simplificada para Mobile */}
+              {/* Tabela Semanal por Quadra */}
               <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none">
                 <div className="p-3 md:p-6 print:p-2">
                   <div className="text-center mb-4 md:mb-6 print:mb-4">
@@ -2198,100 +2458,241 @@ const QuadraManagementSystem = () => {
                           ESPORTE CLUBE JUREMA
                         </h1>
                         <p className="text-sm text-green-600 print:text-sm">Valinhos - Fundado em 03/09/2006</p>
+                        <p className="text-xs text-gray-600 print:text-xs mt-1">
+                          Sistema de Gestão com Controle de Usuários - Programação Semanal
+                        </p>
                       </div>
                     </div>
-                    <h2 className="text-base md:text-lg font-semibold text-gray-800 print:text-base">
-                      Horários - {new Date(mesImpressao + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
-                    </h2>
+                    {(() => {
+                      const dataInicio = new Date(semanaImpressao);
+                      const dataFim = new Date(dataInicio);
+                      dataFim.setDate(dataInicio.getDate() + 6);
+                      
+                      const quadraSelecionada = quadraImpressao ? 
+                        quadras.find(q => q.id == quadraImpressao) : null;
+                      
+                      return (
+                        <div>
+                          <h2 className="text-base md:text-lg font-semibold text-gray-800 print:text-base">
+                            {quadraSelecionada ? 
+                              `${quadraSelecionada.nome} - ` : 
+                              'Todas as Quadras - '
+                            }
+                            Semana de {dataInicio.toLocaleDateString('pt-BR')} a {dataFim.toLocaleDateString('pt-BR')}
+                          </h2>
+                          <p className="text-sm text-gray-600 print:text-sm mt-1">
+                            {new Date(semanaImpressao).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs">
-                      <thead>
-                        <tr className="bg-gray-50 print:bg-gray-100">
-                          <th className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">Data</th>
-                          <th className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">Dia</th>
-                          {quadras.filter(q => q.ativa).map(quadra => (
-                            <th key={quadra.id} className="border border-gray-300 px-1 md:px-2 py-1 text-left font-medium">
-                              <div className="truncate">{quadra.nome.split(' ')[0]}</div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const [ano, mes] = mesImpressao.split('-');
-                          const diasNoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-                          const dias = [];
-                          
-                          for (let dia = 1; dia <= diasNoMes; dia++) {
-                            const dataCompleta = `${mesImpressao}-${dia.toString().padStart(2, '0')}`;
-                            const dataObj = new Date(dataCompleta);
-                            const diaSemana = dataObj.toLocaleDateString('pt-BR', { weekday: 'short' });
-                            
-                            const reservasDoDia = reservas.filter(r => r.data === dataCompleta);
-                            
-                            dias.push(
-                              <tr key={dia} className={`${dia % 2 === 0 ? 'bg-gray-50' : 'bg-white'} print:break-inside-avoid`}>
-                                <td className="border border-gray-300 px-1 md:px-2 py-1 font-medium">
-                                  {dia.toString().padStart(2, '0')}
-                                </td>
-                                <td className="border border-gray-300 px-1 md:px-2 py-1">
-                                  {diaSemana}
-                                </td>
-                                {quadras.filter(q => q.ativa).map(quadra => {
-                                  const reservasQuadra = reservasDoDia.filter(r => r.quadraId === quadra.id);
-                                  return (
-                                    <td key={quadra.id} className="border border-gray-300 px-1 py-1">
-                                      {reservasQuadra.map((reserva, index) => {
-                                        const cliente = clientes.find(c => c.id === reserva.clienteId);
-                                        return (
-                                          <div 
-                                            key={index}
-                                            className={`mb-1 p-1 rounded text-xs ${
-                                              reserva.status === 'Confirmada' ? 'bg-green-100' :
-                                              reserva.status === 'Pendente' ? 'bg-yellow-100' :
-                                              'bg-red-100'
-                                            }`}
-                                          >
-                                            <div className="font-medium text-xs">{reserva.horaInicio}-{reserva.horaFim}</div>
-                                            <div className="truncate text-xs">{cliente?.nome?.split(' ')[0] || 'N/A'}</div>
-                                            <div className="text-gray-600 text-xs">R$ {reserva.valor?.toFixed(0)}</div>
-                                          </div>
-                                        );
-                                      })}
-                                      {reservasQuadra.length === 0 && (
-                                        <div className="text-gray-400 text-center text-xs">-</div>
+                  {(() => {
+                    const dataInicio = new Date(semanaImpressao);
+                    const quadrasParaExibir = quadraImpressao ? 
+                      quadras.filter(q => q.id == quadraImpressao) : 
+                      quadras.filter(q => q.ativa);
+                    
+                    // Gerar os 7 dias da semana
+                    const diasSemana = [];
+                    for (let i = 0; i < 7; i++) {
+                      const data = new Date(dataInicio);
+                      data.setDate(dataInicio.getDate() + i);
+                      diasSemana.push(data);
+                    }
+                    
+                    return quadrasParaExibir.map(quadra => (
+                      <div key={quadra.id} className="mb-6 print:mb-4 print:break-inside-avoid">
+                        <h3 className="text-base md:text-lg font-semibold text-blue-700 mb-3 print:text-base border-b border-blue-200 pb-2">
+                          {quadra.nome} - {quadra.modalidade}
+                        </h3>
+                        
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs">
+                            <thead>
+                              <tr className="bg-blue-50 print:bg-gray-100">
+                                <th className="border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-20">Data</th>
+                                <th className="border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-16">Dia</th>
+                                <th className="border border-gray-300 px-2 md:px-3 py-2 text-left font-medium">Horários e Reservas</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {diasSemana.map((data, index) => {
+                                const dataStr = data.toISOString().split('T')[0];
+                                const diaSemana = data.toLocaleDateString('pt-BR', { weekday: 'long' });
+                                const reservasDoDia = reservas.filter(r => 
+                                  r.data === dataStr && r.quadraId === quadra.id
+                                ).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+                                
+                                return (
+                                  <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} print:break-inside-avoid`}>
+                                    <td className="border border-gray-300 px-2 md:px-3 py-2 font-medium text-blue-600">
+                                      {data.getDate().toString().padStart(2, '0')}/{(data.getMonth() + 1).toString().padStart(2, '0')}
+                                    </td>
+                                    <td className="border border-gray-300 px-2 md:px-3 py-2 text-gray-700 capitalize">
+                                      {diaSemana}
+                                    </td>
+                                    <td className="border border-gray-300 px-2 md:px-3 py-2">
+                                      {reservasDoDia.length > 0 ? (
+                                        <div className="space-y-2">
+                                          {reservasDoDia.map((reserva, idx) => {
+                                            const cliente = clientes.find(c => c.id === reserva.clienteId);
+                                            return (
+                                              <div 
+                                                key={idx}
+                                                className={`p-2 rounded border-l-4 ${
+                                                  reserva.status === 'Confirmada' ? 'bg-green-50 border-green-400' :
+                                                  reserva.status === 'Pendente' ? 'bg-yellow-50 border-yellow-400' :
+                                                  'bg-red-50 border-red-400'
+                                                }`}
+                                              >
+                                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                  <span className="font-bold text-blue-700">
+                                                    {reserva.horaInicio} - {reserva.horaFim}
+                                                  </span>
+                                                  <span className="font-medium text-gray-800">
+                                                    {cliente?.nome || 'Cliente N/A'}
+                                                  </span>
+                                                  <span className="text-green-600 font-medium">
+                                                    R$ {reserva.valor?.toFixed(2)}
+                                                  </span>
+                                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                    reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                                                    reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-red-100 text-red-800'
+                                                  }`}>
+                                                    {reserva.status}
+                                                  </span>
+                                                </div>
+                                                {reserva.usuarioResponsavel && (
+                                                  <div className="mt-1 text-xs text-gray-500 flex items-center">
+                                                    <UserCheck className="h-3 w-3 mr-1" />
+                                                    Agendado por: <strong className="ml-1">{reserva.usuarioResponsavel}</strong>
+                                                    {reserva.dataLancamento && (
+                                                      <span className="ml-2 text-gray-400">
+                                                        • {new Date(reserva.dataLancamento).toLocaleDateString('pt-BR')}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                )}
+                                                {reserva.observacoes && (
+                                                  <div className="mt-1 text-xs text-gray-600 italic">
+                                                    Obs: {reserva.observacoes}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="text-center text-gray-400 py-4 italic">
+                                          Nenhuma reserva para este dia
+                                        </div>
                                       )}
                                     </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          }
-                          
-                          return dias;
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        {/* Resumo da Quadra */}
+                        <div className="mt-3 p-3 bg-blue-50 rounded border print:bg-gray-100">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                            {(() => {
+                              const reservasQuadra = reservas.filter(r => {
+                                const dataReserva = new Date(r.data);
+                                const dataInicio = new Date(semanaImpressao);
+                                const dataFim = new Date(dataInicio);
+                                dataFim.setDate(dataInicio.getDate() + 6);
+                                return r.quadraId === quadra.id && 
+                                       dataReserva >= dataInicio && dataReserva <= dataFim;
+                              });
+                              
+                              const totalReservas = reservasQuadra.length;
+                              const reservasConfirmadas = reservasQuadra.filter(r => r.status === 'Confirmada').length;
+                              const receitaTotal = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
+                              const receitaPaga = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+                              
+                              return (
+                                <>
+                                  <div>
+                                    <span className="text-gray-600">Total de Reservas:</span>
+                                    <span className="font-bold text-blue-600 ml-1">{totalReservas}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-600">Confirmadas:</span>
+                                    <span className="font-bold text-green-600 ml-1">{reservasConfirmadas}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-600">Receita Total:</span>
+                                    <span className="font-bold text-blue-600 ml-1">R$ {receitaTotal.toFixed(2)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-600">Valor Recebido:</span>
+                                    <span className="font-bold text-green-600 ml-1">R$ {receitaPaga.toFixed(2)}</span>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ));
+                  })()}
 
-                  {/* Legenda */}
+                  {/* Legenda e Instruções */}
                   <div className="mt-4 md:mt-6 print:mt-4">
-                    <h3 className="text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm">Legenda</h3>
-                    <div className="flex flex-wrap gap-3 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 md:w-4 md:h-4 bg-green-100 rounded mr-1 md:mr-2"></div>
-                        <span>Confirmada</span>
+                    <h3 className="text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm">Legenda e Informações</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-gray-800">Status das Reservas:</h4>
+                        <div className="space-y-1">
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-green-100 border-l-4 border-green-400 rounded-sm mr-2"></div>
+                            <span>Confirmada</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-yellow-100 border-l-4 border-yellow-400 rounded-sm mr-2"></div>
+                            <span>Pendente</span>
+                          </div>
+                          <div className="flex items-center">
+                            <div className="w-3 h-3 bg-red-100 border-l-4 border-red-400 rounded-sm mr-2"></div>
+                            <span>Cancelada</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 md:w-4 md:h-4 bg-yellow-100 rounded mr-1 md:mr-2"></div>
-                        <span>Pendente</span>
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-gray-800">Informações por Reserva:</h4>
+                        <div className="text-xs space-y-1">
+                          <div>• Horário de início e fim</div>
+                          <div>• Nome completo do cliente</div>
+                          <div>• Valor da locação</div>
+                          <div>• Status da reserva</div>
+                          <div>• Usuário responsável pelo agendamento</div>
+                          <div>• Data do lançamento</div>
+                          <div>• Observações (quando houver)</div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 md:w-4 md:h-4 bg-red-100 rounded mr-1 md:mr-2"></div>
-                        <span>Cancelada</span>
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-gray-800">Resumo por Quadra:</h4>
+                        <div className="text-xs space-y-1">
+                          <div>• Total de reservas na semana</div>
+                          <div>• Quantidade de reservas confirmadas</div>
+                          <div>• Receita total esperada</div>
+                          <div>• Valor efetivamente recebido</div>
+                        </div>
                       </div>
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded print:bg-gray-100">
+                      <p className="text-xs text-green-700 print:text-gray-700">
+                        <strong>Nota:</strong> Este relatório apresenta a programação semanal detalhada por quadra, 
+                        incluindo informações completas de cada reserva e controle de responsabilidade por agendamento. 
+                        Ideal para controle operacional e acompanhamento de ocupação.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -2469,15 +2870,97 @@ const QuadraManagementSystem = () => {
                     onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  <select
-                    value={formReserva.status}
-                    onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="Confirmada">Confirmada</option>
-                    <option value="Pendente">Pendente</option>
-                    <option value="Cancelada">Cancelada</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formReserva.status}
+                      onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="Confirmada">Confirmada</option>
+                      <option value="Pendente">Pendente</option>
+                      <option value="Cancelada">Cancelada</option>
+                    </select>
+                    <select
+                      value={formReserva.statusPagamento}
+                      onChange={(e) => {
+                        const novoStatus = e.target.value;
+                        setFormReserva({
+                          ...formReserva, 
+                          statusPagamento: novoStatus,
+                          // Auto-ajustar valorPago baseado no status
+                          valorPago: novoStatus === 'Pago' && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
+                          dataPagamento: novoStatus !== 'Pendente' && !formReserva.dataPagamento ? new Date().toISOString().split('T')[0] : formReserva.dataPagamento
+                        });
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="Pendente">Pendente</option>
+                      <option value="Parcial">Parcial</option>
+                      <option value="Pago">Pago</option>
+                    </select>
+                  </div>
+                  
+                  {/* Campos de Pagamento - Mostrar apenas se não for Pendente */}
+                  {formReserva.statusPagamento !== 'Pendente' && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
+                      <h4 className="text-sm font-medium text-green-800">Informações de Pagamento</h4>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Valor pago"
+                          value={formReserva.valorPago}
+                          onChange={(e) => {
+                            const valorPago = parseFloat(e.target.value) || 0;
+                            const valorTotal = parseFloat(formReserva.valor) || 0;
+                            let novoStatus = 'Pendente';
+                            
+                            if (valorPago === 0) {
+                              novoStatus = 'Pendente';
+                            } else if (valorPago >= valorTotal) {
+                              novoStatus = 'Pago';
+                            } else {
+                              novoStatus = 'Parcial';
+                            }
+                            
+                            setFormReserva({
+                              ...formReserva, 
+                              valorPago: e.target.value,
+                              statusPagamento: novoStatus
+                            });
+                          }}
+                          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={formReserva.dataPagamento}
+                          onChange={(e) => setFormReserva({...formReserva, dataPagamento: e.target.value})}
+                          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        />
+                      </div>
+                      
+                      <select
+                        value={formReserva.formaPagamento}
+                        onChange={(e) => setFormReserva({...formReserva, formaPagamento: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        <option value="">Forma de pagamento</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Transferência">Transferência</option>
+                        <option value="Cartão">Cartão</option>
+                        <option value="Cheque">Cheque</option>
+                      </select>
+                      
+                      {formReserva.valorPago && formReserva.valor && (
+                        <div className="text-xs text-green-700">
+                          <strong>Saldo:</strong> R$ {((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2)}
+                          {parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && ' ✓ Pago'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <textarea
                     placeholder="Observações (opcional)"
                     value={formReserva.observacoes}

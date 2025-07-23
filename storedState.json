@@ -1,20 +1,26 @@
 {
-  "isAuthenticated": false,
   "quadras": [
     {
       "id": 1,
       "nome": "Campo de Futebol 1",
-      "modalidade": "Campo de Futebol",
+      "ativa": true,
       "valorHora": 100,
-      "ativa": true
+      "modalidade": "Campo de Futebol"
     },
     {
+      "id": 2,
       "nome": "Quadra de Futsal 1",
-      "modalidade": "Quadra de Futsal",
-      "valorHora": 50,
       "ativa": true,
-      "id": 2
+      "valorHora": 50,
+      "modalidade": "Quadra de Futsal"
     }
   ],
-  "usuarioLogado": null
+  "usuarioLogado": {
+    "id": 1,
+    "nome": "Administrador",
+    "cargo": "Administrador Geral",
+    "senha": "jurema2025",
+    "usuario": "admin"
+  },
+  "isAuthenticated": true
 }
