@@ -36,7 +36,7 @@
           } catch (error) {
               console.warn('Could not load storedState.json, using inline data:', error);
               // Fallback to inline stored state data for file:// URLs
-              initialStorage = {"quadras":[{"id":1,"nome":"Campo de Futebol 1","ativa":true,"valorHora":100,"modalidade":"Campo de Futebol"},{"id":2,"nome":"Quadra de Futsal 1","ativa":true,"valorHora":50,"modalidade":"Quadra de Futsal"}],"usuarioLogado":{"id":1,"nome":"Administrador","cargo":"Administrador Geral","senha":"jurema2025","usuario":"admin"},"isAuthenticated":true,"reservas":[{"id":1753233299005,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"06:00","horaFim":"07:00","valor":50,"status":"Confirmada","statusPagamento":"Pago","valorPago":50,"formaPagamento":"Pix","dataPagamento":"2025-07-23","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:14:59.005Z"},{"id":1753233432422,"quadraId":2,"clienteId":2,"data":"2025-07-23","horaInicio":"07:05","horaFim":"08:05","valor":50,"status":"Confirmada","statusPagamento":"Pendente","valorPago":0,"formaPagamento":"","dataPagamento":"","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:17:12.422Z"},{"id":1753233540897,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"08:10","horaFim":"09:10","valor":50,"status":"Confirmada","statusPagamento":"Parcial","valorPago":25,"formaPagamento":"Pix","dataPagamento":"2025-07-24","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:19:00.897Z"}],"clientes":[{"id":1,"nome":"João Silva","telefone":"(11) 99999-9999","email":"joao@email.com"},{"id":2,"nome":"Maria Santos","telefone":"(11) 88888-8888","email":"maria@email.com"},{"id":1753233649746,"nome":"paulo","telefone":"19999217641","email":"pauloricardodestaque@hotmail.com"}]};
+              initialStorage = {"quadras":[{"id":1,"nome":"Campo de Futebol 1","ativa":true,"valorHora":100,"modalidade":"Campo de Futebol"},{"id":2,"nome":"Quadra de Futsal 1","ativa":true,"valorHora":50,"modalidade":"Quadra de Futsal"}],"usuarioLogado":{"id":1,"nome":"Administrador","cargo":"Administrador Geral","senha":"jurema2025","usuario":"admin"},"isAuthenticated":true,"reservas":[{"id":1753233299005,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"06:00","horaFim":"07:00","valor":50,"status":"Confirmada","statusPagamento":"Pago","valorPago":50,"formaPagamento":"Pix","dataPagamento":"2025-07-23","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:14:59.005Z"},{"id":1753233432422,"quadraId":2,"clienteId":2,"data":"2025-07-23","horaInicio":"07:05","horaFim":"08:05","valor":50,"status":"Confirmada","statusPagamento":"Pendente","valorPago":0,"formaPagamento":"","dataPagamento":"","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:17:12.422Z"},{"id":1753233540897,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"08:10","horaFim":"09:10","valor":50,"status":"Confirmada","statusPagamento":"Parcial","valorPago":25,"formaPagamento":"Pix","dataPagamento":"2025-07-24","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:19:00.897Z"},{"id":1753234477985,"quadraId":2,"clienteId":2,"data":"2025-07-23","horaInicio":"09:15","horaFim":"10:15","valor":50,"status":"Confirmada","statusPagamento":"Pago","valorPago":50,"formaPagamento":"Pix","dataPagamento":"2025-07-23","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:34:37.985Z"}],"clientes":[{"id":1,"nome":"João Silva","telefone":"(11) 99999-9999","email":"joao@email.com"},{"id":2,"nome":"Maria Santos","telefone":"(11) 88888-8888","email":"maria@email.com"},{"id":1753233649746,"nome":"paulo","telefone":"19999217641","email":"pauloricardodestaque@hotmail.com"}],"backupLogs":[{"id":1753236368893,"data":"22/07/2025","hora":"23:06:08","timestamp":"2025-07-23T02:06:08.893Z","tipo":"automatico","usuario":"Administrador","status":"Sucesso","tamanho":2657,"registros":9,"observacoes":"Backup automatico executado com sucesso"}],"ultimoBackup":"2025-07-23T02:06:08.893Z","configuracaoBackup":{"autoBackup":false,"intervaloDias":1,"manterHistorico":30,"incluirLogs":true,"compactarDados":true}};
           }
 
           // Initialize localStorage with stored state
@@ -191,6 +191,10 @@ var QuadraManagementSystem = () => {
   const [quadraImpressao, setQuadraImpressao] = useState("");
   const [semanaImpressao, setSemanaImpressao] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [tipoRelatorio, setTipoRelatorio] = useState("financeiro-mensal");
+  const [dataRelatorio, setDataRelatorio] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
+  const [periodoRelatorio, setPeriodoRelatorio] = useState("mensal");
+  const [anoRelatorio, setAnoRelatorio] = useState((/* @__PURE__ */ new Date()).getFullYear().toString());
   const [formQuadra, setFormQuadra] = useState({ nome: "", modalidade: "", valorHora: "", ativa: true });
   const [formCliente, setFormCliente] = useState({ nome: "", telefone: "", email: "" });
   const [formReserva, setFormReserva] = useState({
@@ -236,6 +240,7 @@ var QuadraManagementSystem = () => {
       setQuadras(quadras.map(
         (q) => q.id === editingItem.id ? { ...formQuadra, id: editingItem.id, valorHora: parseFloat(formQuadra.valorHora) } : q
       ));
+      registrarAtividade("QUADRA_EDITADA", \`Quadra "\${formQuadra.nome}" editada\`);
     } else {
       const novaQuadra = {
         id: Date.now(),
@@ -243,6 +248,7 @@ var QuadraManagementSystem = () => {
         valorHora: parseFloat(formQuadra.valorHora)
       };
       setQuadras([...quadras, novaQuadra]);
+      registrarAtividade("QUADRA_CRIADA", \`Nova quadra "\${formQuadra.nome}" criada\`);
     }
     fecharModal();
   };
@@ -258,8 +264,10 @@ var QuadraManagementSystem = () => {
     setShowModal(true);
   };
   const excluirQuadra = (id) => {
+    const quadra = quadras.find((q) => q.id === id);
     if (confirm("Tem certeza que deseja excluir esta quadra?")) {
       setQuadras(quadras.filter((q) => q.id !== id));
+      registrarAtividade("QUADRA_EXCLUIDA", \`Quadra "\${quadra?.nome}" exclu\\xEDda\`);
     }
   };
   const adicionarFaturamento = () => {
@@ -417,27 +425,28 @@ var QuadraManagementSystem = () => {
       alert(\`Esta quadra j\\xE1 possui o limite m\\xE1ximo de 6 reservas para o dia \${formReserva.data}. Escolha outra data.\`);
       return;
     }
-    const validarHorario = (horario) => {
-      const [horas2, minutos2] = horario.split(":").map(Number);
-      return minutos2 % 5 === 0;
-    };
-    if (!validarHorario(formReserva.horaInicio) || !validarHorario(formReserva.horaFim)) {
-      alert("Os hor\\xE1rios devem ser em intervalos de 5 minutos (ex: 08:00, 08:05, 08:10, etc.)");
-      return;
-    }
     if (formReserva.horaInicio >= formReserva.horaFim) {
       alert("A hora de fim deve ser posterior \\xE0 hora de in\\xEDcio!");
       return;
     }
+    const adicionarMinutos = (horario, minutos2) => {
+      const [horas2, mins] = horario.split(":").map(Number);
+      const totalMinutos = horas2 * 60 + mins + minutos2;
+      const novasHoras = Math.floor(totalMinutos / 60);
+      const novosMinutos = totalMinutos % 60;
+      return \`\${novasHoras.toString().padStart(2, "0")}:\${novosMinutos.toString().padStart(2, "0")}\`;
+    };
     const novaHoraInicio = formReserva.horaInicio;
     const novaHoraFim = formReserva.horaFim;
     const temConflito = reservasNoDia.some((reserva) => {
       const reservaInicio = reserva.horaInicio;
       const reservaFim = reserva.horaFim;
-      return novaHoraInicio < reservaFim && novaHoraFim > reservaInicio;
+      const reservaFimMais5min = adicionarMinutos(reservaFim, 5);
+      const novaFimMais5min = adicionarMinutos(novaHoraFim, 5);
+      return novaHoraInicio < reservaFimMais5min && novaHoraFim > reservaInicio || reservaInicio < novaFimMais5min && reservaFim > novaHoraInicio;
     });
     if (temConflito) {
-      alert(\`Conflito de hor\\xE1rio! J\\xE1 existe uma reserva neste per\\xEDodo para a quadra \${quadra.nome} no dia \${formReserva.data}.\`);
+      alert(\`Conflito de hor\\xE1rio! Deve haver um intervalo m\\xEDnimo de 5 minutos entre as reservas na quadra \${quadra.nome} no dia \${formReserva.data}.\`);
       return;
     }
     const horaInicio = /* @__PURE__ */ new Date(\`\${formReserva.data}T\${formReserva.horaInicio}\`);
@@ -458,6 +467,7 @@ var QuadraManagementSystem = () => {
           dataEdicao: (/* @__PURE__ */ new Date()).toISOString()
         } : r
       ));
+      registrarAtividade("RESERVA_EDITADA", \`Reserva editada - \${quadra.nome} em \${formReserva.data}\`);
     } else {
       const novaReserva = {
         id: Date.now(),
@@ -470,6 +480,7 @@ var QuadraManagementSystem = () => {
         dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
       };
       setReservas([...reservas, novaReserva]);
+      registrarAtividade("RESERVA_CRIADA", \`Nova reserva - \${quadra.nome} em \${formReserva.data}\`);
     }
     fecharModal();
   };
@@ -561,6 +572,7 @@ var QuadraManagementSystem = () => {
     }
   };
   const handleLogout = () => {
+    registrarAtividade("LOGOUT", \`Usu\\xE1rio \${usuarioLogado?.nome} fez logout\`);
     setIsAuthenticated(false);
     setUsuarioLogado(null);
     setShowLogin(true);
@@ -613,6 +625,244 @@ var QuadraManagementSystem = () => {
       observacoes: ""
     });
   };
+  const [backupLogs, setBackupLogs] = useStoredState("backupLogs", []);
+  const [ultimoBackup, setUltimoBackup] = useStoredState("ultimoBackup", null);
+  const [configuracaoBackup, setConfiguracaoBackup] = useStoredState("configuracaoBackup", {
+    autoBackup: true,
+    intervaloDias: 1,
+    manterHistorico: 30,
+    // dias
+    incluirLogs: true,
+    compactarDados: true
+  });
+  const gerarBackup = (tipoBackup = "manual") => {
+    try {
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+      const dataBackup = (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR");
+      const horaBackup = (/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR");
+      const dadosBackup = {
+        timestamp,
+        versaoSistema: "2.1.0",
+        tipoBackup,
+        usuario: usuarioLogado?.nome || "Sistema",
+        dados: {
+          quadras,
+          clientes,
+          reservas,
+          faturamentos,
+          recebimentos,
+          usuariosAdmin: usuariosAdmin.map((u) => ({ ...u, senha: "***PROTEGIDA***" })),
+          // Senhas protegidas
+          configuracoes: configuracaoBackup
+        },
+        estatisticas: {
+          totalQuadras: quadras.length,
+          totalClientes: clientes.length,
+          totalReservas: reservas.length,
+          totalFaturamentos: faturamentos.length,
+          totalRecebimentos: recebimentos.length,
+          totalUsuarios: usuariosAdmin.length,
+          receitaTotal: reservas.reduce((acc, r) => acc + (r.valor || 0), 0) + faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0),
+          valorRecebido: reservas.reduce((acc, r) => acc + (r.valorPago || 0), 0) + faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0)
+        },
+        integridade: {
+          checksum: \`\${quadras.length}-\${clientes.length}-\${reservas.length}-\${faturamentos.length}\`,
+          validacao: "OK"
+        }
+      };
+      const logBackup = {
+        id: Date.now(),
+        data: dataBackup,
+        hora: horaBackup,
+        timestamp,
+        tipo: tipoBackup,
+        usuario: usuarioLogado?.nome || "Sistema",
+        status: "Sucesso",
+        tamanho: JSON.stringify(dadosBackup).length,
+        registros: dadosBackup.estatisticas.totalQuadras + dadosBackup.estatisticas.totalClientes + dadosBackup.estatisticas.totalReservas + dadosBackup.estatisticas.totalFaturamentos,
+        observacoes: \`Backup \${tipoBackup} executado com sucesso\`
+      };
+      const chaveBackup = \`backup_\${timestamp.replace(/[:.]/g, "_")}\`;
+      localStorage.setItem(chaveBackup, JSON.stringify(dadosBackup));
+      const novosLogs = [...backupLogs, logBackup];
+      setBackupLogs(novosLogs);
+      setUltimoBackup(timestamp);
+      limparBackupsAntigos();
+      alert(\`\\u2705 Backup realizado com sucesso!
+Data: \${dataBackup} \\xE0s \${horaBackup}
+Tipo: \${tipoBackup.toUpperCase()}
+Registros: \${logBackup.registros}\`);
+      return { sucesso: true, backup: dadosBackup, log: logBackup };
+    } catch (error) {
+      console.error("Erro ao gerar backup:", error);
+      const logErro = {
+        id: Date.now(),
+        data: (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR"),
+        hora: (/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR"),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        tipo: tipoBackup,
+        usuario: usuarioLogado?.nome || "Sistema",
+        status: "Erro",
+        tamanho: 0,
+        registros: 0,
+        observacoes: \`Erro no backup: \${error.message}\`
+      };
+      setBackupLogs([...backupLogs, logErro]);
+      alert(\`\\u274C Erro ao realizar backup!
+Detalhes: \${error.message}\`);
+      return { sucesso: false, erro: error.message };
+    }
+  };
+  const restaurarBackup = (chaveBackup) => {
+    try {
+      const dadosBackup = localStorage.getItem(chaveBackup);
+      if (!dadosBackup) {
+        throw new Error("Backup n\\xE3o encontrado");
+      }
+      const backup = JSON.parse(dadosBackup);
+      const confirmacao = confirm(
+        \`\\u26A0\\uFE0F ATEN\\xC7\\xC3O: RESTAURA\\xC7\\xC3O DE BACKUP
+
+Esta opera\\xE7\\xE3o ir\\xE1 substituir TODOS os dados atuais!
+
+Backup de: \${new Date(backup.timestamp).toLocaleString("pt-BR")}
+Tipo: \${backup.tipoBackup.toUpperCase()}
+Usu\\xE1rio: \${backup.usuario}
+Registros: \${Object.values(backup.estatisticas).reduce((a, b) => typeof b === "number" ? a + b : a, 0)}
+
+Deseja prosseguir com a restaura\\xE7\\xE3o?\`
+      );
+      if (!confirmacao) return;
+      if (backup.dados.quadras) setQuadras(backup.dados.quadras);
+      if (backup.dados.clientes) setClientes(backup.dados.clientes);
+      if (backup.dados.reservas) setReservas(backup.dados.reservas);
+      if (backup.dados.faturamentos) setFaturamentos(backup.dados.faturamentos);
+      if (backup.dados.recebimentos) setRecebimentos(backup.dados.recebimentos);
+      const logRestauracao = {
+        id: Date.now(),
+        data: (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR"),
+        hora: (/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR"),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        tipo: "restauracao",
+        usuario: usuarioLogado?.nome || "Sistema",
+        status: "Sucesso",
+        tamanho: backup.tamanho || 0,
+        registros: Object.values(backup.estatisticas).reduce((a, b) => typeof b === "number" ? a + b : a, 0),
+        observacoes: \`Dados restaurados do backup de \${new Date(backup.timestamp).toLocaleString("pt-BR")}\`
+      };
+      setBackupLogs([...backupLogs, logRestauracao]);
+      alert(\`\\u2705 Restaura\\xE7\\xE3o conclu\\xEDda com sucesso!
+Dados restaurados do backup de \${new Date(backup.timestamp).toLocaleString("pt-BR")}\`);
+    } catch (error) {
+      console.error("Erro na restaura\\xE7\\xE3o:", error);
+      alert(\`\\u274C Erro na restaura\\xE7\\xE3o!
+Detalhes: \${error.message}\`);
+    }
+  };
+  const limparBackupsAntigos = () => {
+    try {
+      const diasManter = configuracaoBackup.manterHistorico;
+      const dataLimite = /* @__PURE__ */ new Date();
+      dataLimite.setDate(dataLimite.getDate() - diasManter);
+      const chaves = Object.keys(localStorage);
+      const chavesBackup = chaves.filter((chave) => chave.startsWith("backup_"));
+      let removidos = 0;
+      chavesBackup.forEach((chave) => {
+        try {
+          const timestampStr = chave.replace("backup_", "").replace(/_/g, ":");
+          const dataBackup = new Date(timestampStr);
+          if (dataBackup < dataLimite) {
+            localStorage.removeItem(chave);
+            removidos++;
+          }
+        } catch (e) {
+          localStorage.removeItem(chave);
+          removidos++;
+        }
+      });
+      console.log(\`Backups antigos removidos: \${removidos}\`);
+    } catch (error) {
+      console.error("Erro ao limpar backups antigos:", error);
+    }
+  };
+  const listarBackups = () => {
+    const chaves = Object.keys(localStorage);
+    const chavesBackup = chaves.filter((chave) => chave.startsWith("backup_"));
+    return chavesBackup.map((chave) => {
+      try {
+        const dados = JSON.parse(localStorage.getItem(chave));
+        return {
+          chave,
+          timestamp: dados.timestamp,
+          data: new Date(dados.timestamp).toLocaleDateString("pt-BR"),
+          hora: new Date(dados.timestamp).toLocaleTimeString("pt-BR"),
+          tipo: dados.tipoBackup,
+          usuario: dados.usuario,
+          registros: Object.values(dados.estatisticas).reduce((a, b) => typeof b === "number" ? a + b : a, 0),
+          tamanho: (JSON.stringify(dados).length / 1024).toFixed(2) + " KB"
+        };
+      } catch (e) {
+        return null;
+      }
+    }).filter((backup) => backup !== null).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  };
+  useEffect(() => {
+    if (!configuracaoBackup.autoBackup) return;
+    const verificarBackupAutomatico = () => {
+      const agora = /* @__PURE__ */ new Date();
+      const hoje2 = agora.toDateString();
+      const ultimoBackupData = ultimoBackup ? new Date(ultimoBackup).toDateString() : null;
+      if (ultimoBackupData !== hoje2 && agora.getHours() >= 23) {
+        gerarBackup("automatico");
+      }
+    };
+    const interval = setInterval(verificarBackupAutomatico, 60 * 60 * 1e3);
+    verificarBackupAutomatico();
+    return () => clearInterval(interval);
+  }, [ultimoBackup, configuracaoBackup.autoBackup]);
+  const registrarAtividade = (acao, detalhes = "") => {
+    const logAtividade = {
+      id: Date.now(),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      data: (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR"),
+      hora: (/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR"),
+      usuario: usuarioLogado?.nome || "Sistema",
+      acao,
+      detalhes,
+      ip: "Local",
+      // Em produção, capturar IP real
+      dispositivo: navigator.userAgent.substring(0, 50) + "..."
+    };
+    const logsAtividade = JSON.parse(localStorage.getItem("logs_atividade") || "[]");
+    logsAtividade.push(logAtividade);
+    if (logsAtividade.length > 1e3) {
+      logsAtividade.splice(0, logsAtividade.length - 1e3);
+    }
+    localStorage.setItem("logs_atividade", JSON.stringify(logsAtividade));
+  };
+  useEffect(() => {
+    if (isAuthenticated && usuarioLogado) {
+      registrarAtividade("LOGIN", \`Usu\\xE1rio \${usuarioLogado.nome} fez login\`);
+    }
+  }, [isAuthenticated, usuarioLogado]);
+  const imprimirRelatorio = () => {
+    const elementsToHide = document.querySelectorAll("nav, button, .fixed, .sticky, .md\\\\:hidden, .hover\\\\:bg-green-700");
+    const originalDisplays = [];
+    elementsToHide.forEach((el, index) => {
+      originalDisplays[index] = el.style.display;
+      el.style.display = "none";
+    });
+    document.body.classList.add("printing");
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        elementsToHide.forEach((el, index) => {
+          el.style.display = originalDisplays[index];
+        });
+        document.body.classList.remove("printing");
+      }, 1e3);
+    }, 100);
+  };
   const hoje = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const reservasHoje = reservas.filter((r) => r.data === hoje);
   const receitaMensal = reservas.filter((r) => r.data.startsWith((/* @__PURE__ */ new Date()).toISOString().slice(0, 7))).reduce((acc, r) => acc + r.valor, 0);
@@ -629,8 +879,9 @@ var QuadraManagementSystem = () => {
     quadras: Building,
     clientes: UserCheck,
     financeiro: CreditCard,
-    impressao: Printer,
-    admin: Settings
+    relatorios: FileText,
+    admin: Settings,
+    sistema: Shield
   };
   const tabLabels = {
     dashboard: "Painel",
@@ -638,8 +889,9 @@ var QuadraManagementSystem = () => {
     quadras: "Quadras",
     clientes: "Clientes",
     financeiro: "Financeiro",
-    impressao: "Impress\\xE3o",
-    admin: "ADM"
+    relatorios: "Relat\\xF3rios",
+    admin: "ADM",
+    sistema: "Sistema"
   };
   if (showLogin) {
     return /* @__PURE__ */ React.createElement("div", { className: "min-h-screen bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center p-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-xl shadow-2xl p-8 w-full max-w-md" }, /* @__PURE__ */ React.createElement("div", { className: "text-center mb-8" }, /* @__PURE__ */ React.createElement(
@@ -689,57 +941,206 @@ var QuadraManagementSystem = () => {
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("style", { jsx: true }, \`
         @media print {
           @page {
-            size: A4 landscape;
-            margin: 1cm;
+            size: A4 portrait;
+            margin: 0.8cm;
+          }
+          
+          * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           
           body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
           }
           
+          /* Ocultar elementos desnecess\\xE1rios na impress\\xE3o */
+          nav, .md\\\\:hidden, button, .hover\\\\:bg-green-700,
+          .fixed, .sticky, .z-40, .z-50, .bg-gradient-to-r {
+            display: none !important;
+          }
+          
+          /* Container principal */
+          .w-full.h-full.bg-gray-50 {
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          
+          /* Conte\\xFAdo do relat\\xF3rio */
+          .bg-white.rounded-lg.shadow {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Cabe\\xE7alho */
+          .text-center.mb-4 {
+            margin-bottom: 15px !important;
+            page-break-after: avoid;
+          }
+          
+          .text-lg, .text-xl, .text-2xl {
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
+          
+          .text-sm {
+            font-size: 11px !important;
+          }
+          
+          .text-xs {
+            font-size: 10px !important;
+          }
+          
+          /* Logo */
+          img {
+            width: 40px !important;
+            height: 40px !important;
+          }
+          
+          /* Tabelas */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 10px !important;
+            margin: 10px 0 !important;
+          }
+          
+          th, td {
+            border: 1px solid #ccc !important;
+            padding: 4px 6px !important;
+            text-align: left !important;
+            vertical-align: top !important;
+          }
+          
+          th {
+            background-color: #f5f5f5 !important;
+            font-weight: bold !important;
+            font-size: 9px !important;
+          }
+          
+          /* Cores de status */
+          .bg-green-100 {
+            background-color: #dcfce7 !important;
+          }
+          
+          .bg-yellow-100 {
+            background-color: #fefce8 !important;
+          }
+          
+          .bg-red-100 {
+            background-color: #fef2f2 !important;
+          }
+          
+          .text-green-800 {
+            color: #166534 !important;
+          }
+          
+          .text-yellow-800 {
+            color: #92400e !important;
+          }
+          
+          .text-red-800 {
+            color: #991b1b !important;
+          }
+          
+          .text-blue-600 {
+            color: #2563eb !important;
+          }
+          
+          /* Cards de resumo */
+          .grid.grid-cols-2, .grid.grid-cols-4 {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 8px !important;
+            margin: 15px 0 !important;
+          }
+          
+          .bg-blue-50, .bg-green-50, .bg-purple-50, .bg-orange-50 {
+            border: 1px solid #ddd !important;
+            padding: 8px !important;
+            border-radius: 4px !important;
+          }
+          
+          /* Se\\xE7\\xF5es */
+          .border.rounded-lg {
+            border: 1px solid #ccc !important;
+            border-radius: 4px !important;
+            margin: 10px 0 !important;
+            padding: 10px !important;
+            page-break-inside: avoid;
+          }
+          
+          /* T\\xEDtulos de se\\xE7\\xE3o */
+          h3, h4 {
+            font-size: 12px !important;
+            font-weight: bold !important;
+            margin: 8px 0 4px 0 !important;
+            color: #1f2937 !important;
+          }
+          
+          /* Quebras de p\\xE1gina */
+          .space-y-6 > * {
+            margin-bottom: 10px !important;
+          }
+          
+          /* Legenda */
+          .grid.grid-cols-1.md\\\\:grid-cols-3 {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 10px !important;
+            margin-top: 15px !important;
+            font-size: 9px !important;
+          }
+          
+          /* Status badges */
+          .px-1.py-0\\\\.5.text-xs.rounded,
+          .px-2.py-1.text-xs.rounded-full {
+            padding: 2px 4px !important;
+            border-radius: 2px !important;
+            font-size: 8px !important;
+            font-weight: bold !important;
+          }
+          
+          /* Evitar quebras em elementos importantes */
           .print\\\\:break-inside-avoid {
-            break-inside: avoid;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
           
-          .print\\\\:text-xs {
-            font-size: 0.75rem;
+          /* Ajustes de espa\\xE7amento */
+          .space-y-6 > *:not(:first-child) {
+            margin-top: 10px !important;
           }
           
-          .print\\\\:text-sm {
-            font-size: 0.875rem;
+          .space-y-4 > *:not(:first-child) {
+            margin-top: 8px !important;
           }
           
-          .print\\\\:text-lg {
-            font-size: 1.125rem;
+          .space-y-3 > *:not(:first-child) {
+            margin-top: 6px !important;
           }
           
-          .print\\\\:p-2 {
-            padding: 0.5rem;
+          .space-y-2 > *:not(:first-child) {
+            margin-top: 4px !important;
           }
           
-          .print\\\\:mb-4 {
-            margin-bottom: 1rem;
+          /* Overflow para tabelas */
+          .overflow-x-auto {
+            overflow: visible !important;
           }
           
-          .print\\\\:mt-4 {
-            margin-top: 1rem;
+          /* Responsividade para impress\\xE3o */
+          .hidden.md\\\\:block {
+            display: block !important;
           }
           
-          .print\\\\:gap-2 {
-            gap: 0.5rem;
-          }
-          
-          .print\\\\:space-x-4 > * + * {
-            margin-left: 1rem;
-          }
-          
-          .print\\\\:shadow-none {
-            box-shadow: none;
-          }
-          
-          .print\\\\:bg-gray-100 {
-            background-color: #f3f4f6;
+          .md\\\\:hidden {
+            display: none !important;
           }
         }
       \`), /* @__PURE__ */ React.createElement("div", { className: "w-full h-full bg-gray-50 overflow-auto" }, /* @__PURE__ */ React.createElement("div", { className: "bg-gradient-to-r from-green-600 to-green-700 shadow-sm border-b px-4 py-3 md:px-6 md:py-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-3" }, /* @__PURE__ */ React.createElement(
@@ -803,7 +1204,7 @@ var QuadraManagementSystem = () => {
       /* @__PURE__ */ React.createElement(IconComponent, { className: "h-5 w-5" }),
       /* @__PURE__ */ React.createElement("span", { className: "text-xs" }, label)
     );
-  })), /* @__PURE__ */ React.createElement("div", { className: "bg-gray-800 text-center py-1" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-300" }, "\\xA9 2025 PauloCunhaMKT Solu\\xE7\\xF5es TI \\u2022 v2.1.0"))), /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 pb-24 md:pb-16" }, activeTab === "dashboard" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Hoje"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, reservasHoje.length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "M\\xE1x: ", quadras.filter((q) => q.ativa).length * 6)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(DollarSign, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Receita"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-2xl font-bold text-gray-900" }, "R\$ ", receitaMensal.toFixed(0))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Clientes"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, clientes.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-6 w-6 md:h-8 md:w-8 text-orange-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Quadras"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, quadras.filter((q) => q.ativa).length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "6 slots/dia \\u2022 5min"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Pr\\xF3ximas Reservas")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, reservas.slice(0, 5).map((reserva) => {
+  })), /* @__PURE__ */ React.createElement("div", { className: "bg-gray-800 text-center py-1" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-300" }, "\\xA9 2025 PauloCunhaMKT Solu\\xE7\\xF5es TI \\u2022 v2.1.0"))), /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 pb-24 md:pb-16" }, activeTab === "dashboard" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Hoje"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, reservasHoje.length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "M\\xE1x: ", quadras.filter((q) => q.ativa).length * 6)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(DollarSign, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Receita"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-2xl font-bold text-gray-900" }, "R\$ ", receitaMensal.toFixed(0))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Clientes"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, clientes.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-6 w-6 md:h-8 md:w-8 text-orange-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Quadras"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, quadras.filter((q) => q.ativa).length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "6 slots/dia \\u2022 5min intervalo"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Pr\\xF3ximas Reservas")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, reservas.slice(0, 5).map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
     return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, cliente?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, reserva.data, " \\xE0s ", reserva.horaInicio)), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full whitespace-nowrap ml-2 \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status));
@@ -1237,7 +1638,93 @@ var QuadraManagementSystem = () => {
       },
       /* @__PURE__ */ React.createElement(Trash2, { className: "h-3 w-3" })
     )));
-  }))))), activeTab === "admin" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gerencie usu\\xE1rios com acesso ao sistema")), /* @__PURE__ */ React.createElement(
+  }))))), activeTab === "sistema" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Sistema - Backup e Logs"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Controle de seguran\\xE7a, backup autom\\xE1tico e logs de atividades")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 w-full sm:w-auto" }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => gerarBackup("manual"),
+      className: "w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700"
+    },
+    /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4" }),
+    /* @__PURE__ */ React.createElement("span", null, "Backup Manual")
+  ))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-4 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg border border-green-200" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-500 rounded-full animate-pulse mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Status do Sistema"), /* @__PURE__ */ React.createElement("p", { className: "text-lg font-bold text-green-600" }, "Online")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg border border-blue-200" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\\xDAltimo Backup"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, ultimoBackup ? new Date(ultimoBackup).toLocaleDateString("pt-BR") : "Nunca")))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-4 rounded-lg border border-purple-200" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(FileText, { className: "h-8 w-8 text-purple-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-purple-900" }, "Logs de Backup"), /* @__PURE__ */ React.createElement("p", { className: "text-lg font-bold text-purple-600" }, backupLogs.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg border border-orange-200" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(AlertCircle, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Backup Autom\\xE1tico"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-orange-600" }, configuracaoBackup.autoBackup ? "Ativo" : "Inativo"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-4" }, "Configura\\xE7\\xF5es de Backup"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("label", { className: "flex items-center space-x-3" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: configuracaoBackup.autoBackup,
+      onChange: (e) => setConfiguracaoBackup({
+        ...configuracaoBackup,
+        autoBackup: e.target.checked
+      }),
+      className: "w-4 h-4 text-blue-600"
+    }
+  ), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Backup Autom\\xE1tico Di\\xE1rio")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Intervalo (dias)"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: configuracaoBackup.intervaloDias,
+      onChange: (e) => setConfiguracaoBackup({
+        ...configuracaoBackup,
+        intervaloDias: parseInt(e.target.value)
+      }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: 1 }, "Di\\xE1rio"),
+    /* @__PURE__ */ React.createElement("option", { value: 2 }, "A cada 2 dias"),
+    /* @__PURE__ */ React.createElement("option", { value: 7 }, "Semanal")
+  ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Manter hist\\xF3rico (dias)"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: configuracaoBackup.manterHistorico,
+      onChange: (e) => setConfiguracaoBackup({
+        ...configuracaoBackup,
+        manterHistorico: parseInt(e.target.value)
+      }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: 7 }, "7 dias"),
+    /* @__PURE__ */ React.createElement("option", { value: 15 }, "15 dias"),
+    /* @__PURE__ */ React.createElement("option", { value: 30 }, "30 dias"),
+    /* @__PURE__ */ React.createElement("option", { value: 60 }, "60 dias")
+  )), /* @__PURE__ */ React.createElement("label", { className: "flex items-center space-x-3" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: configuracaoBackup.incluirLogs,
+      onChange: (e) => setConfiguracaoBackup({
+        ...configuracaoBackup,
+        incluirLogs: e.target.checked
+      }),
+      className: "w-4 h-4 text-blue-600"
+    }
+  ), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Incluir Logs nos Backups"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900" }, "Backups Dispon\\xEDveis"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: limparBackupsAntigos,
+      className: "text-sm bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200"
+    },
+    "Limpar Antigos"
+  )), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Tipo"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Usu\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Registros"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Tamanho"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\\xE7\\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, listarBackups().slice(0, 10).map((backup, index) => /* @__PURE__ */ React.createElement("tr", { key: backup.chave, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, backup.data, " ", backup.hora), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${backup.tipo === "automatico" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}\` }, backup.tipo.toUpperCase())), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, backup.usuario), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, backup.registros), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, backup.tamanho), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => restaurarBackup(backup.chave),
+      className: "text-green-600 hover:text-green-900 mr-3"
+    },
+    "Restaurar"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => {
+        if (confirm("Excluir este backup?")) {
+          localStorage.removeItem(backup.chave);
+          setActiveTab("sistema");
+        }
+      },
+      className: "text-red-600 hover:text-red-900"
+    },
+    "Excluir"
+  )))))), listarBackups().length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhum backup encontrado"))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-4" }, "Hist\\xF3rico de Backups"), /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, backupLogs.slice(-10).reverse().map((log) => /* @__PURE__ */ React.createElement("div", { key: log.id, className: \`p-3 rounded border-l-4 \${log.status === "Sucesso" ? "bg-green-50 border-green-400" : "bg-red-50 border-red-400"}\` }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-sm" }, log.tipo.toUpperCase(), " - ", log.status), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600" }, log.data, " \\xE0s ", log.hora, " por ", log.usuario), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, log.observacoes)), /* @__PURE__ */ React.createElement("div", { className: "text-right text-xs text-gray-500" }, /* @__PURE__ */ React.createElement("p", null, log.registros, " registros"), /* @__PURE__ */ React.createElement("p", null, (log.tamanho / 1024).toFixed(2), " KB"))))), backupLogs.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhum log de backup encontrado"))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-4" }, "Logs de Atividade do Sistema"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2 max-h-96 overflow-y-auto" }, (() => {
+    const logsAtividade = JSON.parse(localStorage.getItem("logs_atividade") || "[]");
+    return logsAtividade.slice(-20).reverse().map((log) => /* @__PURE__ */ React.createElement("div", { key: log.id, className: "p-2 border rounded text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center" }, /* @__PURE__ */ React.createElement("span", { className: "font-medium" }, log.acao), /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, log.data, " ", log.hora)), /* @__PURE__ */ React.createElement("div", { className: "text-gray-600 mt-1" }, /* @__PURE__ */ React.createElement("p", null, "Usu\\xE1rio: ", log.usuario), log.detalhes && /* @__PURE__ */ React.createElement("p", null, "Detalhes: ", log.detalhes))));
+  })())), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-blue-900 mb-2" }, "Informa\\xE7\\xF5es do Sistema"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Vers\\xE3o:"), " v2.1.0"), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Build:"), " 2025.01")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Navegador:"), " ", navigator.userAgent.substring(0, 30), "..."), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Armazenamento:"), " LocalStorage")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Backup Autom\\xE1tico:"), " ", configuracaoBackup.autoBackup ? "Ativo" : "Inativo"), /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Pr\\xF3ximo Backup:"), " ", ultimoBackup ? new Date(new Date(ultimoBackup).getTime() + configuracaoBackup.intervaloDias * 24 * 60 * 60 * 1e3).toLocaleDateString("pt-BR") : "Hoje"))))), activeTab === "admin" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gerencie usu\\xE1rios com acesso ao sistema")), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => {
@@ -1278,20 +1765,86 @@ var QuadraManagementSystem = () => {
       disabled: usuariosAdmin.length <= 1
     },
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\\xDAltimo administrador ativo - n\\xE3o pode ser exclu\\xEDdo por seguran\\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "impressao" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Impress\\xE3o Semanal por Quadra"), /* @__PURE__ */ React.createElement(
+  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\\xDAltimo administrador ativo - n\\xE3o pode ser exclu\\xEDdo por seguran\\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "relatorios" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Centro de Relat\\xF3rios"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gere relat\\xF3rios detalhados para impress\\xE3o e an\\xE1lise")), /* @__PURE__ */ React.createElement(
     "button",
     {
-      onClick: () => window.print(),
-      className: "bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700"
+      onClick: imprimirRelatorio,
+      className: "bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 print:hidden"
     },
     /* @__PURE__ */ React.createElement(Printer, { className: "h-4 w-4" }),
-    /* @__PURE__ */ React.createElement("span", null, "Imprimir")
-  )), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-4 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-medium text-gray-700 mb-3" }, "Filtros para Impress\\xE3o"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Semana de:"), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("span", null, "Imprimir Relat\\xF3rio")
+  )), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-4 rounded-lg shadow print:hidden" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm font-medium text-gray-700 mb-3" }, "Tipo de Relat\\xF3rio"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Categoria:"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: tipoRelatorio.split("-")[0],
+      onChange: (e) => {
+        const categoria = e.target.value;
+        const periodo = tipoRelatorio.split("-")[1] || "diario";
+        setTipoRelatorio(\`\${categoria}-\${periodo}\`);
+      },
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "financeiro" }, "Financeiro"),
+    /* @__PURE__ */ React.createElement("option", { value: "reservas" }, "Reservas"),
+    /* @__PURE__ */ React.createElement("option", { value: "quadras" }, "Programa\\xE7\\xE3o de Quadras")
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Per\\xEDodo:"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: tipoRelatorio.split("-")[1],
+      onChange: (e) => {
+        const categoria = tipoRelatorio.split("-")[0];
+        const periodo = e.target.value;
+        setTipoRelatorio(\`\${categoria}-\${periodo}\`);
+      },
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "diario" }, "Di\\xE1rio"),
+    /* @__PURE__ */ React.createElement("option", { value: "semanal" }, "Semanal"),
+    /* @__PURE__ */ React.createElement("option", { value: "mensal" }, "Mensal"),
+    /* @__PURE__ */ React.createElement("option", { value: "anual" }, "Anual")
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, tipoRelatorio.includes("diario") ? "Data:" : tipoRelatorio.includes("semanal") ? "Semana de:" : tipoRelatorio.includes("anual") ? "Ano:" : "M\\xEAs/Ano:"), tipoRelatorio.includes("anual") ? /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: anoRelatorio,
+      onChange: (e) => setAnoRelatorio(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    Array.from({ length: 5 }, (_, i) => {
+      const ano = (/* @__PURE__ */ new Date()).getFullYear() - 2 + i;
+      return /* @__PURE__ */ React.createElement("option", { key: ano, value: ano }, ano);
+    })
+  ) : tipoRelatorio.includes("mensal") ? /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: mesImpressao,
+      onChange: (e) => setMesImpressao(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    (() => {
+      const options = [];
+      const hoje2 = /* @__PURE__ */ new Date();
+      for (let i = -6; i <= 6; i++) {
+        const data = new Date(hoje2.getFullYear(), hoje2.getMonth() + i, 1);
+        const valor = \`\${data.getFullYear()}-\${(data.getMonth() + 1).toString().padStart(2, "0")}\`;
+        const texto = data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+        options.push(
+          /* @__PURE__ */ React.createElement("option", { key: valor, value: valor }, texto.charAt(0).toUpperCase() + texto.slice(1))
+        );
+      }
+      return options;
+    })()
+  ) : /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
-      value: semanaImpressao,
-      onChange: (e) => setSemanaImpressao(e.target.value),
+      value: tipoRelatorio.includes("semanal") ? semanaImpressao : dataRelatorio,
+      onChange: (e) => {
+        if (tipoRelatorio.includes("semanal")) {
+          setSemanaImpressao(e.target.value);
+        } else {
+          setDataRelatorio(e.target.value);
+        }
+      },
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
   )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Quadra:"), /* @__PURE__ */ React.createElement(
@@ -1303,96 +1856,167 @@ var QuadraManagementSystem = () => {
     },
     /* @__PURE__ */ React.createElement("option", { value: "" }, "Todas as Quadras"),
     quadras.filter((q) => q.ativa).map((quadra) => /* @__PURE__ */ React.createElement("option", { key: quadra.id, value: quadra.id }, quadra.nome))
-  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-gray-600 mb-1" }, "Per\\xEDodo:"), /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value: mesImpressao,
-      onChange: (e) => setMesImpressao(e.target.value),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-    },
-    (() => {
-      const options = [];
-      const hoje2 = /* @__PURE__ */ new Date();
-      for (let i = -3; i <= 3; i++) {
-        const data = new Date(hoje2.getFullYear(), hoje2.getMonth() + i, 1);
-        const valor = \`\${data.getFullYear()}-\${(data.getMonth() + 1).toString().padStart(2, "0")}\`;
-        const texto = data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-        options.push(
-          /* @__PURE__ */ React.createElement("option", { key: valor, value: valor }, texto.charAt(0).toUpperCase() + texto.slice(1))
-        );
-      }
-      return options;
-    })()
-  ))))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4" }, (() => {
-    const dataInicio = new Date(semanaImpressao);
-    const dataFim = new Date(dataInicio);
-    dataFim.setDate(dataInicio.getDate() + 6);
-    const reservasSemana = reservas.filter((r) => {
-      const dataReserva = new Date(r.data);
-      return dataReserva >= dataInicio && dataReserva <= dataFim && (!quadraImpressao || r.quadraId == quadraImpressao);
-    });
-    const quadrasAtivas = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
-    return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-blue-900 text-sm" }, "Reservas da Semana"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-blue-600" }, reservasSemana.length)), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-green-900 text-sm" }, "Receita Semanal"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-green-600" }, "R\$ ", reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-purple-900 text-sm" }, "Quadra(s) Selecionada(s)"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-purple-600" }, quadrasAtivas.length)), /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-orange-900 text-sm" }, "Taxa Ocupa\\xE7\\xE3o"), /* @__PURE__ */ React.createElement("p", { className: "text-xl md:text-2xl font-bold text-orange-600" }, (() => {
-      const totalSlotsPossiveis = 7 * quadrasAtivas.length * 6;
-      const slotsOcupados = reservasSemana.filter((r) => r.status === "Confirmada").length;
-      return totalSlotsPossiveis > 0 ? Math.round(slotsOcupados / totalSlotsPossiveis * 100) : 0;
-    })(), "%")));
-  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow overflow-hidden print:shadow-none" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 print:p-2" }, /* @__PURE__ */ React.createElement("div", { className: "text-center mb-4 md:mb-6 print:mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center mb-2 print:mb-1" }, /* @__PURE__ */ React.createElement(
+  ))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow overflow-hidden print:shadow-none print:border-0 print:rounded-none" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 print:p-0 print:m-0" }, /* @__PURE__ */ React.createElement("div", { className: "text-center mb-4 md:mb-6 print:mb-3 print:break-inside-avoid" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center mb-2 print:mb-1" }, /* @__PURE__ */ React.createElement(
     "img",
     {
       src: "assets/QnQ2IRKmq0zfR25_j1Nkf.png",
       alt: "Esporte Clube Jurema",
       className: "h-12 w-12 md:h-16 md:w-16 rounded-full bg-white p-1 mr-3 print:h-10 print:w-10"
     }
-  ), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "text-lg md:text-2xl font-bold text-green-700 print:text-lg" }, "ESPORTE CLUBE JUREMA"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-green-600 print:text-sm" }, "Valinhos - Fundado em 03/09/2006"), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600 print:text-xs mt-1" }, "Sistema de Gest\\xE3o com Controle de Usu\\xE1rios - Programa\\xE7\\xE3o Semanal"))), (() => {
-    const dataInicio = new Date(semanaImpressao);
-    const dataFim = new Date(dataInicio);
-    dataFim.setDate(dataInicio.getDate() + 6);
-    const quadraSelecionada = quadraImpressao ? quadras.find((q) => q.id == quadraImpressao) : null;
-    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-base md:text-lg font-semibold text-gray-800 print:text-base" }, quadraSelecionada ? \`\${quadraSelecionada.nome} - \` : "Todas as Quadras - ", "Semana de ", dataInicio.toLocaleDateString("pt-BR"), " a ", dataFim.toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 print:text-sm mt-1" }, new Date(semanaImpressao).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase()));
+  ), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h1", { className: "text-lg md:text-2xl font-bold text-green-700 print:text-lg" }, "ESPORTE CLUBE JUREMA"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-green-600 print:text-sm" }, "Valinhos - Fundado em 03/09/2006"), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-600 print:text-xs mt-1" }, "Sistema de Gest\\xE3o com Controle de Usu\\xE1rios - ", tipoRelatorio.includes("financeiro") ? "Relat\\xF3rio Financeiro" : tipoRelatorio.includes("reservas") ? "Relat\\xF3rio de Reservas" : "Programa\\xE7\\xE3o de Quadras"))), (() => {
+    const getTituloRelatorio = () => {
+      const categoria = tipoRelatorio.split("-")[0];
+      const periodo = tipoRelatorio.split("-")[1];
+      const quadraSelecionada = quadraImpressao ? quadras.find((q) => q.id == quadraImpressao) : null;
+      let titulo = "";
+      if (categoria === "financeiro") titulo = "Relat\\xF3rio Financeiro";
+      else if (categoria === "reservas") titulo = "Relat\\xF3rio de Reservas";
+      else titulo = "Programa\\xE7\\xE3o de Quadras";
+      if (periodo === "diario") {
+        return \`\${titulo} - \${new Date(dataRelatorio).toLocaleDateString("pt-BR")}\`;
+      } else if (periodo === "semanal") {
+        const dataInicio = new Date(semanaImpressao);
+        const dataFim = new Date(dataInicio);
+        dataFim.setDate(dataInicio.getDate() + 6);
+        return \`\${titulo} - Semana de \${dataInicio.toLocaleDateString("pt-BR")} a \${dataFim.toLocaleDateString("pt-BR")}\`;
+      } else if (periodo === "mensal") {
+        const [ano, mes] = mesImpressao.split("-");
+        const data = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+        return \`\${titulo} - \${data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase()}\`;
+      } else if (periodo === "anual") {
+        return \`\${titulo} - Ano \${anoRelatorio}\`;
+      }
+      return titulo;
+    };
+    return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-base md:text-lg font-semibold text-gray-800 print:text-base" }, quadraImpressao ? \`\${quadras.find((q) => q.id == quadraImpressao)?.nome} - \` : "Todas as Quadras - ", getTituloRelatorio()), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 print:text-sm mt-1" }, "Gerado em: ", (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR"), " \\xE0s ", (/* @__PURE__ */ new Date()).toLocaleTimeString("pt-BR")));
   })()), (() => {
-    const dataInicio = new Date(semanaImpressao);
-    const quadrasParaExibir = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
-    const diasSemana = [];
-    for (let i = 0; i < 7; i++) {
-      const data = new Date(dataInicio);
-      data.setDate(dataInicio.getDate() + i);
-      diasSemana.push(data);
+    if (tipoRelatorio.includes("financeiro")) {
+      return /* @__PURE__ */ React.createElement("div", null, (() => {
+        let dataInicio, dataFim;
+        if (tipoRelatorio.includes("diario")) {
+          dataInicio = new Date(dataRelatorio);
+          dataFim = new Date(dataInicio);
+          dataFim.setDate(dataInicio.getDate() + 1);
+        } else if (tipoRelatorio.includes("semanal")) {
+          dataInicio = new Date(semanaImpressao);
+          dataFim = new Date(dataInicio);
+          dataFim.setDate(dataInicio.getDate() + 6);
+        } else if (tipoRelatorio.includes("mensal")) {
+          const [ano, mes] = mesImpressao.split("-");
+          dataInicio = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+          dataFim = new Date(parseInt(ano), parseInt(mes), 0);
+        } else if (tipoRelatorio.includes("anual")) {
+          dataInicio = new Date(parseInt(anoRelatorio), 0, 1);
+          dataFim = new Date(parseInt(anoRelatorio), 11, 31);
+        }
+        const reservasPeriodo = reservas.filter((r) => {
+          const dataReserva = new Date(r.data);
+          return dataReserva >= dataInicio && dataReserva <= dataFim && (!quadraImpressao || r.quadraId == quadraImpressao);
+        });
+        const faturamentosPeriodo = faturamentos.filter((f) => {
+          const dataFaturamento = new Date(f.data);
+          return dataFaturamento >= dataInicio && dataFaturamento <= dataFim;
+        });
+        return /* @__PURE__ */ React.createElement("div", { className: "space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-semibold text-blue-700 mb-4" }, "Resumo Financeiro"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-blue-600 font-medium" }, "Faturamento Reservas"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-blue-700" }, "R\$ ", reservasPeriodo.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-green-600 font-medium" }, "Recebido Reservas"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-green-700" }, "R\$ ", reservasPeriodo.reduce((acc, r) => acc + (r.valorPago || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-purple-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-purple-600 font-medium" }, "Faturamento Outros"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-purple-700" }, "R\$ ", faturamentosPeriodo.reduce((acc, f) => acc + (f.valor || 0), 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-orange-600 font-medium" }, "Recebido Outros"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-orange-700" }, "R\$ ", faturamentosPeriodo.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0).toFixed(2))))), (quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa)).map((quadra) => {
+          const reservasQuadra = reservasPeriodo.filter((r) => r.quadraId === quadra.id);
+          const receitaQuadra = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
+          const recebidoQuadra = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+          return /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-800 mb-3" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-4 mb-4 text-sm" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Reservas:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg" }, reservasQuadra.length)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-blue-600" }, "R\$ ", receitaQuadra.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-green-600" }, "R\$ ", recebidoQuadra.toFixed(2)))), reservasQuadra.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto print:overflow-visible" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs print:text-xs print:w-full" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Hor\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Pago"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Status"))), /* @__PURE__ */ React.createElement("tbody", null, reservasQuadra.sort((a, b) => a.data.localeCompare(b.data)).map((reserva, idx) => {
+            const cliente = clientes.find((c) => c.id === reserva.clienteId);
+            return /* @__PURE__ */ React.createElement("tr", { key: idx, className: idx % 2 === 0 ? "bg-white" : "bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, new Date(reserva.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, cliente?.nome || "N/A"), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-blue-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-green-600 font-medium" }, "R\$ ", (reserva.valorPago || 0).toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, /* @__PURE__ */ React.createElement("span", { className: \`px-1 py-0.5 text-xs rounded \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")));
+          })))));
+        }), faturamentosPeriodo.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4 print:break-inside-avoid print:page-break-before-auto" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-800 mb-3" }, "Faturamentos Administrativos"), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto print:overflow-visible" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs print:text-xs print:w-full" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Tipo"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Recebido"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Em Aberto"))), /* @__PURE__ */ React.createElement("tbody", null, faturamentosPeriodo.sort((a, b) => a.data.localeCompare(b.data)).map((faturamento, idx) => /* @__PURE__ */ React.createElement("tr", { key: idx, className: idx % 2 === 0 ? "bg-white" : "bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, new Date(faturamento.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, faturamento.cliente), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, faturamento.tipoLocacao), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-blue-600 font-medium" }, "R\$ ", faturamento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-green-600 font-medium" }, "R\$ ", (faturamento.valorRealRecebido || 0).toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-red-600 font-medium" }, "R\$ ", (faturamento.valorEmAberto || 0).toFixed(2)))))))));
+      })());
+    } else if (tipoRelatorio.includes("reservas")) {
+      return /* @__PURE__ */ React.createElement("div", null, (() => {
+        let dataInicio, dataFim;
+        if (tipoRelatorio.includes("diario")) {
+          dataInicio = new Date(dataRelatorio);
+          dataFim = new Date(dataInicio);
+          dataFim.setDate(dataInicio.getDate() + 1);
+        } else if (tipoRelatorio.includes("semanal")) {
+          dataInicio = new Date(semanaImpressao);
+          dataFim = new Date(dataInicio);
+          dataFim.setDate(dataInicio.getDate() + 6);
+        } else if (tipoRelatorio.includes("mensal")) {
+          const [ano, mes] = mesImpressao.split("-");
+          dataInicio = new Date(parseInt(ano), parseInt(mes) - 1, 1);
+          dataFim = new Date(parseInt(ano), parseInt(mes), 0);
+        } else if (tipoRelatorio.includes("anual")) {
+          dataInicio = new Date(parseInt(anoRelatorio), 0, 1);
+          dataFim = new Date(parseInt(anoRelatorio), 11, 31);
+        }
+        const reservasPeriodo = reservas.filter((r) => {
+          const dataReserva = new Date(r.data);
+          return dataReserva >= dataInicio && dataReserva <= dataFim && (!quadraImpressao || r.quadraId == quadraImpressao);
+        });
+        const confirmadasCount = reservasPeriodo.filter((r) => r.status === "Confirmada").length;
+        const pendentesCount = reservasPeriodo.filter((r) => r.status === "Pendente").length;
+        const canceladasCount = reservasPeriodo.filter((r) => r.status === "Cancelada").length;
+        return /* @__PURE__ */ React.createElement("div", { className: "space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-semibold text-blue-700 mb-4" }, "Resumo de Reservas"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-blue-600 font-medium" }, "Total"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-blue-700" }, reservasPeriodo.length)), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-green-600 font-medium" }, "Confirmadas"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-green-700" }, confirmadasCount)), /* @__PURE__ */ React.createElement("div", { className: "bg-yellow-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-yellow-600 font-medium" }, "Pendentes"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-yellow-700" }, pendentesCount)), /* @__PURE__ */ React.createElement("div", { className: "bg-red-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-red-600 font-medium" }, "Canceladas"), /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold text-red-700" }, canceladasCount)))), tipoRelatorio.includes("diario") ? (
+          // Para relatório diário, mostrar por horário
+          /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-800 mb-3" }, "Reservas do Dia - ", new Date(dataRelatorio).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Hor\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Respons\\xE1vel"))), /* @__PURE__ */ React.createElement("tbody", null, reservasPeriodo.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((reserva, idx) => {
+            const quadra = quadras.find((q) => q.id === reserva.quadraId);
+            const cliente = clientes.find((c) => c.id === reserva.clienteId);
+            return /* @__PURE__ */ React.createElement("tr", { key: idx, className: idx % 2 === 0 ? "bg-white" : "bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 font-medium" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-blue-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, /* @__PURE__ */ React.createElement("span", { className: \`px-1 py-0.5 text-xs rounded \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-xs" }, reserva.usuarioResponsavel || "N/A"));
+          })))))
+        ) : (
+          // Para outros períodos, agrupar por quadra
+          (quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa)).map((quadra) => {
+            const reservasQuadra = reservasPeriodo.filter((r) => r.quadraId === quadra.id);
+            return reservasQuadra.length > 0 && /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-800 mb-3" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Hor\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Status"))), /* @__PURE__ */ React.createElement("tbody", null, reservasQuadra.sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)).map((reserva, idx) => {
+              const cliente = clientes.find((c) => c.id === reserva.clienteId);
+              return /* @__PURE__ */ React.createElement("tr", { key: idx, className: idx % 2 === 0 ? "bg-white" : "bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, new Date(reserva.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 font-medium" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-blue-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, /* @__PURE__ */ React.createElement("span", { className: \`px-1 py-0.5 text-xs rounded \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)));
+            })))));
+          })
+        ));
+      })());
+    } else {
+      return /* @__PURE__ */ React.createElement("div", null, (() => {
+        const dataInicio = new Date(semanaImpressao);
+        const quadrasParaExibir = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+        const diasSemana = [];
+        for (let i = 0; i < 7; i++) {
+          const data = new Date(dataInicio);
+          data.setDate(dataInicio.getDate() + i);
+          diasSemana.push(data);
+        }
+        return quadrasParaExibir.map((quadra) => /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "mb-6 print:mb-4 print:break-inside-avoid" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-semibold text-blue-700 mb-3 print:text-base border-b border-blue-200 pb-2" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-blue-50 print:bg-gray-100" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-20" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-16" }, "Dia"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium" }, "Hor\\xE1rios e Reservas"))), /* @__PURE__ */ React.createElement("tbody", null, diasSemana.map((data, index) => {
+          const dataStr = data.toISOString().split("T")[0];
+          const diaSemana = data.toLocaleDateString("pt-BR", { weekday: "long" });
+          const reservasDoDia = reservas.filter(
+            (r) => r.data === dataStr && r.quadraId === quadra.id
+          ).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+          return /* @__PURE__ */ React.createElement("tr", { key: index, className: \`\${index % 2 === 0 ? "bg-white" : "bg-gray-50"} print:break-inside-avoid\` }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 font-medium text-blue-600" }, data.getDate().toString().padStart(2, "0"), "/", (data.getMonth() + 1).toString().padStart(2, "0")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 text-gray-700 capitalize" }, diaSemana), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2" }, reservasDoDia.length > 0 ? /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, reservasDoDia.map((reserva, idx) => {
+            const cliente = clientes.find((c) => c.id === reserva.clienteId);
+            return /* @__PURE__ */ React.createElement(
+              "div",
+              {
+                key: idx,
+                className: \`p-2 rounded border-l-4 \${reserva.status === "Confirmada" ? "bg-green-50 border-green-400" : reserva.status === "Pendente" ? "bg-yellow-50 border-yellow-400" : "bg-red-50 border-red-400"}\`
+              },
+              /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap items-center gap-2 text-xs" }, /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-700" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-800" }, cliente?.nome || "Cliente N/A"), /* @__PURE__ */ React.createElement("span", { className: "text-green-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 rounded-full text-xs font-medium \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)),
+              reserva.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Agendado por: ", /* @__PURE__ */ React.createElement("strong", { className: "ml-1" }, reserva.usuarioResponsavel), reserva.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2 text-gray-400" }, "\\u2022 ", new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))),
+              reserva.observacoes && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-600 italic" }, "Obs: ", reserva.observacoes)
+            );
+          })) : /* @__PURE__ */ React.createElement("div", { className: "text-center text-gray-400 py-4 italic" }, "Nenhuma reserva para este dia")));
+        })))), /* @__PURE__ */ React.createElement("div", { className: "mt-3 p-3 bg-blue-50 rounded border print:bg-gray-100" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 text-xs" }, (() => {
+          const reservasQuadra = reservas.filter((r) => {
+            const dataReserva = new Date(r.data);
+            const dataInicio2 = new Date(semanaImpressao);
+            const dataFim = new Date(dataInicio2);
+            dataFim.setDate(dataInicio2.getDate() + 6);
+            return r.quadraId === quadra.id && dataReserva >= dataInicio2 && dataReserva <= dataFim;
+          });
+          const totalReservas = reservasQuadra.length;
+          const reservasConfirmadas = reservasQuadra.filter((r) => r.status === "Confirmada").length;
+          const receitaTotal = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
+          const receitaPaga = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+          return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Total de Reservas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, totalReservas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Confirmadas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, reservasConfirmadas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Receita Total:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, "R\$ ", receitaTotal.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Valor Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, "R\$ ", receitaPaga.toFixed(2))));
+        })()))));
+      })());
     }
-    return quadrasParaExibir.map((quadra) => /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "mb-6 print:mb-4 print:break-inside-avoid" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-semibold text-blue-700 mb-3 print:text-base border-b border-blue-200 pb-2" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-blue-50 print:bg-gray-100" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-20" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium w-16" }, "Dia"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 md:px-3 py-2 text-left font-medium" }, "Hor\\xE1rios e Reservas"))), /* @__PURE__ */ React.createElement("tbody", null, diasSemana.map((data, index) => {
-      const dataStr = data.toISOString().split("T")[0];
-      const diaSemana = data.toLocaleDateString("pt-BR", { weekday: "long" });
-      const reservasDoDia = reservas.filter(
-        (r) => r.data === dataStr && r.quadraId === quadra.id
-      ).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-      return /* @__PURE__ */ React.createElement("tr", { key: index, className: \`\${index % 2 === 0 ? "bg-white" : "bg-gray-50"} print:break-inside-avoid\` }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 font-medium text-blue-600" }, data.getDate().toString().padStart(2, "0"), "/", (data.getMonth() + 1).toString().padStart(2, "0")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2 text-gray-700 capitalize" }, diaSemana), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 md:px-3 py-2" }, reservasDoDia.length > 0 ? /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, reservasDoDia.map((reserva, idx) => {
-        const cliente = clientes.find((c) => c.id === reserva.clienteId);
-        return /* @__PURE__ */ React.createElement(
-          "div",
-          {
-            key: idx,
-            className: \`p-2 rounded border-l-4 \${reserva.status === "Confirmada" ? "bg-green-50 border-green-400" : reserva.status === "Pendente" ? "bg-yellow-50 border-yellow-400" : "bg-red-50 border-red-400"}\`
-          },
-          /* @__PURE__ */ React.createElement("div", { className: "flex flex-wrap items-center gap-2 text-xs" }, /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-700" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-800" }, cliente?.nome || "Cliente N/A"), /* @__PURE__ */ React.createElement("span", { className: "text-green-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 rounded-full text-xs font-medium \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)),
-          reserva.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Agendado por: ", /* @__PURE__ */ React.createElement("strong", { className: "ml-1" }, reserva.usuarioResponsavel), reserva.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2 text-gray-400" }, "\\u2022 ", new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))),
-          reserva.observacoes && /* @__PURE__ */ React.createElement("div", { className: "mt-1 text-xs text-gray-600 italic" }, "Obs: ", reserva.observacoes)
-        );
-      })) : /* @__PURE__ */ React.createElement("div", { className: "text-center text-gray-400 py-4 italic" }, "Nenhuma reserva para este dia")));
-    })))), /* @__PURE__ */ React.createElement("div", { className: "mt-3 p-3 bg-blue-50 rounded border print:bg-gray-100" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 text-xs" }, (() => {
-      const reservasQuadra = reservas.filter((r) => {
-        const dataReserva = new Date(r.data);
-        const dataInicio2 = new Date(semanaImpressao);
-        const dataFim = new Date(dataInicio2);
-        dataFim.setDate(dataInicio2.getDate() + 6);
-        return r.quadraId === quadra.id && dataReserva >= dataInicio2 && dataReserva <= dataFim;
-      });
-      const totalReservas = reservasQuadra.length;
-      const reservasConfirmadas = reservasQuadra.filter((r) => r.status === "Confirmada").length;
-      const receitaTotal = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
-      const receitaPaga = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
-      return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Total de Reservas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, totalReservas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Confirmadas:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, reservasConfirmadas)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Receita Total:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, "R\$ ", receitaTotal.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Valor Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, "R\$ ", receitaPaga.toFixed(2))));
-    })()))));
-  })(), /* @__PURE__ */ React.createElement("div", { className: "mt-4 md:mt-6 print:mt-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm" }, "Legenda e Informa\\xE7\\xF5es"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Status das Reservas:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-100 border-l-4 border-green-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Confirmada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-yellow-100 border-l-4 border-yellow-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-red-100 border-l-4 border-red-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Cancelada")))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Informa\\xE7\\xF5es por Reserva:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Hor\\xE1rio de in\\xEDcio e fim (intervalos de 5 minutos)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Nome completo do cliente"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Valor da loca\\xE7\\xE3o proporcional ao tempo"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Status da reserva (cores visuais)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Usu\\xE1rio respons\\xE1vel pelo agendamento"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Data do lan\\xE7amento da reserva"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Observa\\xE7\\xF5es (quando houver)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 M\\xE1ximo 6 reservas por quadra/dia"))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Resumo por Quadra:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Total de reservas na semana"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Quantidade de reservas confirmadas"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Receita total esperada"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Valor efetivamente recebido")))), /* @__PURE__ */ React.createElement("div", { className: "mt-4 p-3 bg-green-50 border border-green-200 rounded print:bg-gray-100" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-green-700 print:text-gray-700" }, /* @__PURE__ */ React.createElement("strong", null, "Nota:"), " Este relat\\xF3rio apresenta a programa\\xE7\\xE3o semanal detalhada por quadra, incluindo informa\\xE7\\xF5es completas de cada reserva e controle de responsabilidade por agendamento. Ideal para controle operacional e acompanhamento de ocupa\\xE7\\xE3o."))))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-gray-800 text-center py-3 mt-8 border-t border-gray-700" }, /* @__PURE__ */ React.createElement("div", { className: "max-w-7xl mx-auto px-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-300" }, "Sistema Online")), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\\u2022"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-300" }, "\\xA9 2025 ", /* @__PURE__ */ React.createElement("span", { className: "font-medium text-green-400" }, "PauloCunhaMKT"), " Solu\\xE7\\xF5es TI"), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\\u2022"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-700 px-2 py-1 rounded text-gray-400" }, "v2.1.0"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, "Build 2025.01"))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Sistema de Gest\\xE3o Esportiva \\u2022 Desenvolvido especialmente para o Esporte Clube Jurema"))), showModal && /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium" }, editingItem ? "Editar" : "Novo", " ", modalType === "quadra" ? "Quadra" : modalType === "cliente" ? "Cliente" : modalType === "admin" ? "Administrador" : modalType === "faturamento" ? "Faturamento" : modalType === "recebimento" ? "Recebimento" : "Reserva"), /* @__PURE__ */ React.createElement("button", { onClick: fecharModal }, /* @__PURE__ */ React.createElement(X, { className: "h-5 w-5" }))), modalType === "quadra" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
+  })(), /* @__PURE__ */ React.createElement("div", { className: "mt-4 md:mt-6 print:mt-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-sm md:text-lg font-medium text-gray-900 mb-2 md:mb-3 print:text-sm" }, "Legenda e Informa\\xE7\\xF5es"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 print:gap-4 text-xs md:text-sm print:text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Status das Reservas:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-100 border-l-4 border-green-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Confirmada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-yellow-100 border-l-4 border-yellow-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-red-100 border-l-4 border-red-400 rounded-sm mr-2" }), /* @__PURE__ */ React.createElement("span", null, "Cancelada")))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, tipoRelatorio.includes("financeiro") ? "Informa\\xE7\\xF5es Financeiras:" : tipoRelatorio.includes("reservas") ? "Dados das Reservas:" : "Programa\\xE7\\xE3o de Quadras:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, tipoRelatorio.includes("financeiro") ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Valores faturados e recebidos"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Separa\\xE7\\xE3o por reservas e outros"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Status de pagamento detalhado"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 An\\xE1lise por quadra e per\\xEDodo"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Controle de inadimpl\\xEAncia")) : tipoRelatorio.includes("reservas") ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Hor\\xE1rios e dura\\xE7\\xF5es das reservas"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Dados completos dos clientes"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Status e valores das reservas"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Usu\\xE1rio respons\\xE1vel pelo agendamento"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Controle de ocupa\\xE7\\xE3o por per\\xEDodo")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Hor\\xE1rio de in\\xEDcio e fim (intervalos de 5 minutos)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Nome completo do cliente"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Valor da loca\\xE7\\xE3o proporcional ao tempo"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Status da reserva (cores visuais)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Usu\\xE1rio respons\\xE1vel pelo agendamento"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Data do lan\\xE7amento da reserva"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Observa\\xE7\\xF5es (quando houver)"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 M\\xE1ximo 6 reservas por quadra/dia")))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-800" }, "Caracter\\xEDsticas do Relat\\xF3rio:"), /* @__PURE__ */ React.createElement("div", { className: "text-xs space-y-1" }, /* @__PURE__ */ React.createElement("div", null, "\\u2022 Per\\xEDodo: ", tipoRelatorio.includes("diario") ? "Di\\xE1rio" : tipoRelatorio.includes("semanal") ? "Semanal" : tipoRelatorio.includes("mensal") ? "Mensal" : "Anual"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Categoria: ", tipoRelatorio.includes("financeiro") ? "Financeiro" : tipoRelatorio.includes("reservas") ? "Reservas" : "Programa\\xE7\\xE3o"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Quadra(s): ", quadraImpressao ? quadras.find((q) => q.id == quadraImpressao)?.nome : "Todas as ativas"), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Gerado em: ", (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("div", null, "\\u2022 Usu\\xE1rio: ", usuarioLogado?.nome)))), /* @__PURE__ */ React.createElement("div", { className: "mt-4 p-3 bg-blue-50 border border-blue-200 rounded print:bg-gray-100" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-blue-700 print:text-gray-700" }, /* @__PURE__ */ React.createElement("strong", null, "Centro de Relat\\xF3rios:"), " ", tipoRelatorio.includes("financeiro") ? "Relat\\xF3rio financeiro detalhado com controle de faturamento, recebimentos e inadimpl\\xEAncia. Ideal para an\\xE1lise de desempenho financeiro e tomada de decis\\xF5es." : tipoRelatorio.includes("reservas") ? "Relat\\xF3rio completo de reservas com dados operacionais e de ocupa\\xE7\\xE3o. Perfeito para controle administrativo e an\\xE1lise de demanda." : "Programa\\xE7\\xE3o detalhada por quadra incluindo informa\\xE7\\xF5es completas de cada reserva e controle de responsabilidade por agendamento. Ideal para controle operacional e acompanhamento de ocupa\\xE7\\xE3o."))))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-gray-800 text-center py-3 mt-8 border-t border-gray-700" }, /* @__PURE__ */ React.createElement("div", { className: "max-w-7xl mx-auto px-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-center space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-2 h-2 bg-green-500 rounded-full animate-pulse" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-300" }, "Sistema Online")), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\\u2022"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-300" }, "\\xA9 2025 ", /* @__PURE__ */ React.createElement("span", { className: "font-medium text-green-400" }, "PauloCunhaMKT"), " Solu\\xE7\\xF5es TI"), /* @__PURE__ */ React.createElement("div", { className: "text-gray-500" }, "\\u2022"), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-1" }, /* @__PURE__ */ React.createElement("span", { className: "text-xs bg-gray-700 px-2 py-1 rounded text-gray-400" }, "v2.1.0"), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-500" }, "Build 2025.01"))), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Sistema de Gest\\xE3o Esportiva \\u2022 Desenvolvido especialmente para o Esporte Clube Jurema"))), showModal && /* @__PURE__ */ React.createElement("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg p-4 md:p-6 w-full max-w-md mx-4 max-h-screen overflow-y-auto" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-center mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium" }, editingItem ? "Editar" : "Novo", " ", modalType === "quadra" ? "Quadra" : modalType === "cliente" ? "Cliente" : modalType === "admin" ? "Administrador" : modalType === "faturamento" ? "Faturamento" : modalType === "recebimento" ? "Recebimento" : "Reserva"), /* @__PURE__ */ React.createElement("button", { onClick: fecharModal }, /* @__PURE__ */ React.createElement(X, { className: "h-5 w-5" }))), modalType === "quadra" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -1504,8 +2128,7 @@ var QuadraManagementSystem = () => {
       onChange: (e) => setFormReserva({ ...formReserva, horaInicio: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm",
       min: "06:00",
-      max: "22:00",
-      step: "300"
+      max: "22:00"
     }
   ), /* @__PURE__ */ React.createElement(
     "input",
@@ -1516,15 +2139,14 @@ var QuadraManagementSystem = () => {
       onChange: (e) => setFormReserva({ ...formReserva, horaFim: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm",
       min: "07:00",
-      max: "23:00",
-      step: "300"
+      max: "23:00"
     }
   )), formReserva.data && formReserva.quadraId && /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "Disponibilidade:"), (() => {
     const reservasNoDia = reservas.filter(
       (r) => r.data === formReserva.data && r.quadraId === parseInt(formReserva.quadraId) && (!editingItem || r.id !== editingItem.id)
     );
     const quadraSelecionada = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
-    return /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", null, "\\u2022 Quadra: ", /* @__PURE__ */ React.createElement("strong", null, quadraSelecionada?.nome)), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Data: ", /* @__PURE__ */ React.createElement("strong", null, (/* @__PURE__ */ new Date(formReserva.data + "T00:00:00")).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Reservas no dia: ", /* @__PURE__ */ React.createElement("strong", null, reservasNoDia.length, "/6")), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Hor\\xE1rio de funcionamento: ", /* @__PURE__ */ React.createElement("strong", null, "06:00 \\xE0s 23:00")), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Intervalos permitidos: ", /* @__PURE__ */ React.createElement("strong", null, "5 em 5 minutos")), reservasNoDia.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium" }, "Hor\\xE1rios ocupados:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, reservasNoDia.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((r, idx) => {
+    return /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", null, "\\u2022 Quadra: ", /* @__PURE__ */ React.createElement("strong", null, quadraSelecionada?.nome)), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Data: ", /* @__PURE__ */ React.createElement("strong", null, (/* @__PURE__ */ new Date(formReserva.data + "T00:00:00")).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Reservas no dia: ", /* @__PURE__ */ React.createElement("strong", null, reservasNoDia.length, "/6")), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Hor\\xE1rio de funcionamento: ", /* @__PURE__ */ React.createElement("strong", null, "06:00 \\xE0s 23:00")), /* @__PURE__ */ React.createElement("p", null, "\\u2022 Intervalo entre reservas: ", /* @__PURE__ */ React.createElement("strong", null, "m\\xEDnimo 5 minutos")), reservasNoDia.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium" }, "Hor\\xE1rios ocupados:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, reservasNoDia.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((r, idx) => {
       const cliente = clientes.find((c) => c.id === r.clienteId);
       return /* @__PURE__ */ React.createElement("div", { key: idx, className: "text-xs bg-white p-2 rounded border" }, /* @__PURE__ */ React.createElement("strong", null, r.horaInicio, " - ", r.horaFim), " \\u2022 ", cliente?.nome);
     }))), reservasNoDia.length >= 6 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700" }, /* @__PURE__ */ React.createElement("strong", null, "\\u26A0\\uFE0F Limite atingido!"), " Esta quadra j\\xE1 possui 6 reservas neste dia."));

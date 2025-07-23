@@ -74,6 +74,23 @@
       "observacoes": "",
       "usuarioResponsavel": "Administrador",
       "dataLancamento": "2025-07-23T01:19:00.897Z"
+    },
+    {
+      "id": 1753234477985,
+      "quadraId": 2,
+      "clienteId": 2,
+      "data": "2025-07-23",
+      "horaInicio": "09:15",
+      "horaFim": "10:15",
+      "valor": 50,
+      "status": "Confirmada",
+      "statusPagamento": "Pago",
+      "valorPago": 50,
+      "formaPagamento": "Pix",
+      "dataPagamento": "2025-07-23",
+      "observacoes": "",
+      "usuarioResponsavel": "Administrador",
+      "dataLancamento": "2025-07-23T01:34:37.985Z"
     }
   ],
   "clientes": [
@@ -95,5 +112,27 @@
       "telefone": "19999217641",
       "email": "pauloricardodestaque@hotmail.com"
     }
-  ]
+  ],
+  "backupLogs": [
+    {
+      "id": 1753236368893,
+      "data": "22/07/2025",
+      "hora": "23:06:08",
+      "timestamp": "2025-07-23T02:06:08.893Z",
+      "tipo": "automatico",
+      "usuario": "Administrador",
+      "status": "Sucesso",
+      "tamanho": 2657,
+      "registros": 9,
+      "observacoes": "Backup automatico executado com sucesso"
+    }
+  ],
+  "ultimoBackup": "2025-07-23T02:06:08.893Z",
+  "configuracaoBackup": {
+    "autoBackup": false,
+    "intervaloDias": 1,
+    "manterHistorico": 30,
+    "incluirLogs": true,
+    "compactarDados": true
+  }
 }
