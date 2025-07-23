@@ -283,9 +283,71 @@ const QuadraManagementSystem = () => {
   // Funções para Reservas
   const adicionarReserva = () => {
     const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+    
+    // Validar se a quadra existe
+    if (!quadra) {
+      alert('Selecione uma quadra válida!');
+      return;
+    }
+    
+    // Validar campos obrigatórios
+    if (!formReserva.data || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId) {
+      alert('Preencha todos os campos obrigatórios!');
+      return;
+    }
+    
+    // Verificar conflito de horários (apenas para novas reservas ou quando mudar horário/data)
+    const reservasNoDia = reservas.filter(r => 
+      r.data === formReserva.data && 
+      r.quadraId === parseInt(formReserva.quadraId) &&
+      (!editingItem || r.id !== editingItem.id) // Excluir reserva atual se estiver editando
+    );
+    
+    // Verificar limite de 6 reservas diárias por quadra
+    if (reservasNoDia.length >= 6) {
+      alert(`Esta quadra já possui o limite máximo de 6 reservas para o dia ${formReserva.data}. Escolha outra data.`);
+      return;
+    }
+    
+    // Validar formato de horário (múltiplos de 5 minutos)
+    const validarHorario = (horario) => {
+      const [horas, minutos] = horario.split(':').map(Number);
+      return minutos % 5 === 0;
+    };
+    
+    if (!validarHorario(formReserva.horaInicio) || !validarHorario(formReserva.horaFim)) {
+      alert('Os horários devem ser em intervalos de 5 minutos (ex: 08:00, 08:05, 08:10, etc.)');
+      return;
+    }
+    
+    // Verificar se hora fim é posterior à hora início
+    if (formReserva.horaInicio >= formReserva.horaFim) {
+      alert('A hora de fim deve ser posterior à hora de início!');
+      return;
+    }
+    
+    // Verificar sobreposição de horários
+    const novaHoraInicio = formReserva.horaInicio;
+    const novaHoraFim = formReserva.horaFim;
+    
+    const temConflito = reservasNoDia.some(reserva => {
+      const reservaInicio = reserva.horaInicio;
+      const reservaFim = reserva.horaFim;
+      
+      // Verificar se há sobreposição (considerando intervalos de 5 minutos)
+      return (novaHoraInicio < reservaFim && novaHoraFim > reservaInicio);
+    });
+    
+    if (temConflito) {
+      alert(`Conflito de horário! Já existe uma reserva neste período para a quadra ${quadra.nome} no dia ${formReserva.data}.`);
+      return;
+    }
+    
+    // Calcular valor (considerando intervalos de 5 minutos)
     const horaInicio = new Date(`${formReserva.data}T${formReserva.horaInicio}`);
     const horaFim = new Date(`${formReserva.data}T${formReserva.horaFim}`);
-    const horas = (horaFim - horaInicio) / (1000 * 60 * 60);
+    const minutos = (horaFim - horaInicio) / (1000 * 60);
+    const horas = minutos / 60;
     const valorCalculado = horas * quadra.valorHora;
 
     if (editingItem) {
@@ -819,6 +881,7 @@ const QuadraManagementSystem = () => {
                     <div className="ml-2 md:ml-4">
                       <p className="text-xs md:text-sm font-medium text-gray-600">Hoje</p>
                       <p className="text-lg md:text-2xl font-bold text-gray-900">{reservasHoje.length}</p>
+                      <p className="text-xs text-gray-500">Máx: {quadras.filter(q => q.ativa).length * 6}</p>
                     </div>
                   </div>
                 </div>
@@ -846,6 +909,7 @@ const QuadraManagementSystem = () => {
                     <div className="ml-2 md:ml-4">
                       <p className="text-xs md:text-sm font-medium text-gray-600">Quadras</p>
                       <p className="text-lg md:text-2xl font-bold text-gray-900">{quadras.filter(q => q.ativa).length}</p>
+                      <p className="text-xs text-gray-500">6 slots/dia • 5min</p>
                     </div>
                   </div>
                 </div>
@@ -2432,7 +2496,7 @@ const QuadraManagementSystem = () => {
                         <h4 className="font-medium text-orange-900 text-sm">Taxa Ocupação</h4>
                         <p className="text-xl md:text-2xl font-bold text-orange-600">
                           {(() => {
-                            const totalSlotsPossiveis = 7 * quadrasAtivas.length * 12; // 7 dias, 12 slots por dia
+                            const totalSlotsPossiveis = 7 * quadrasAtivas.length * 6; // 7 dias, máximo 6 reservas por dia (intervalos de 5 min)
                             const slotsOcupados = reservasSemana.filter(r => r.status === 'Confirmada').length;
                             return totalSlotsPossiveis > 0 ? Math.round((slotsOcupados / totalSlotsPossiveis) * 100) : 0;
                           })()}%
@@ -2667,13 +2731,14 @@ const QuadraManagementSystem = () => {
                       <div className="space-y-2">
                         <h4 className="font-medium text-gray-800">Informações por Reserva:</h4>
                         <div className="text-xs space-y-1">
-                          <div>• Horário de início e fim</div>
+                          <div>• Horário de início e fim (intervalos de 5 minutos)</div>
                           <div>• Nome completo do cliente</div>
-                          <div>• Valor da locação</div>
-                          <div>• Status da reserva</div>
+                          <div>• Valor da locação proporcional ao tempo</div>
+                          <div>• Status da reserva (cores visuais)</div>
                           <div>• Usuário responsável pelo agendamento</div>
-                          <div>• Data do lançamento</div>
+                          <div>• Data do lançamento da reserva</div>
                           <div>• Observações (quando houver)</div>
+                          <div>• Máximo 6 reservas por quadra/dia</div>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -2854,6 +2919,9 @@ const QuadraManagementSystem = () => {
                       value={formReserva.horaInicio}
                       onChange={(e) => setFormReserva({...formReserva, horaInicio: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      min="06:00"
+                      max="22:00"
+                      step="300"
                     />
                     <input
                       type="time"
@@ -2861,8 +2929,62 @@ const QuadraManagementSystem = () => {
                       value={formReserva.horaFim}
                       onChange={(e) => setFormReserva({...formReserva, horaFim: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      min="07:00"
+                      max="23:00"
+                      step="300"
                     />
                   </div>
+                  
+                  {/* Aviso sobre disponibilidade */}
+                  {formReserva.data && formReserva.quadraId && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="text-sm text-blue-700">
+                        <strong>Disponibilidade:</strong>
+                        {(() => {
+                          const reservasNoDia = reservas.filter(r => 
+                            r.data === formReserva.data && 
+                            r.quadraId === parseInt(formReserva.quadraId) &&
+                            (!editingItem || r.id !== editingItem.id)
+                          );
+                          const quadraSelecionada = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+                          
+                          return (
+                            <div className="mt-2">
+                              <p>• Quadra: <strong>{quadraSelecionada?.nome}</strong></p>
+                              <p>• Data: <strong>{new Date(formReserva.data + 'T00:00:00').toLocaleDateString('pt-BR')}</strong></p>
+                              <p>• Reservas no dia: <strong>{reservasNoDia.length}/6</strong></p>
+                              <p>• Horário de funcionamento: <strong>06:00 às 23:00</strong></p>
+                              <p>• Intervalos permitidos: <strong>5 em 5 minutos</strong></p>
+                              
+                              {reservasNoDia.length > 0 && (
+                                <div className="mt-2">
+                                  <p className="font-medium">Horários ocupados:</p>
+                                  <div className="space-y-1">
+                                    {reservasNoDia
+                                      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+                                      .map((r, idx) => {
+                                        const cliente = clientes.find(c => c.id === r.clienteId);
+                                        return (
+                                          <div key={idx} className="text-xs bg-white p-2 rounded border">
+                                            <strong>{r.horaInicio} - {r.horaFim}</strong> • {cliente?.nome}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {reservasNoDia.length >= 6 && (
+                                <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700">
+                                  <strong>⚠️ Limite atingido!</strong> Esta quadra já possui 6 reservas neste dia.
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
                   <input
                     type="number"
                     placeholder="Valor (opcional)"
