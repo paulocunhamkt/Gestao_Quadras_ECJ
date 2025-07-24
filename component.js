@@ -53,7 +53,18 @@ var QuadraManagementSystem = () => {
     valorPago: "",
     formaPagamento: "",
     dataPagamento: "",
-    observacoes: ""
+    observacoes: "",
+    // Campos para reserva mensal
+    tipoReserva: "avulsa",
+    // 'avulsa' ou 'mensal'
+    mesReferencia: "",
+    diasSemana: [],
+    // array com dias da semana selecionados
+    valorMensal: 0,
+    numeroParcelas: 1,
+    valorParcela: 0,
+    dataVencimentoPrimeiraParcela: "",
+    observacoesMensal: ""
   });
   const [formAdmin, setFormAdmin] = useState({ nome: "", usuario: "", senha: "", cargo: "" });
   const [formFaturamento, setFormFaturamento] = useState({
@@ -308,15 +319,91 @@ var QuadraManagementSystem = () => {
       setClientes(clientes.filter((c) => c.id !== id));
     }
   };
+  const calcularValorMensal = () => {
+    if (!formReserva.quadraId || !formReserva.horaInicio || !formReserva.horaFim || formReserva.diasSemana.length === 0) {
+      return 0;
+    }
+    const quadra = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
+    if (!quadra) return 0;
+    const horaInicio = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
+    const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
+    const minutos = (horaFim - horaInicio) / (1e3 * 60);
+    const horas = minutos / 60;
+    const valorSessao = horas * quadra.valorHora;
+    const sessoesPorSemana = formReserva.diasSemana.length;
+    const sessoesPorMes = Math.round(sessoesPorSemana * 4.33);
+    const valorMensal = valorSessao * sessoesPorMes;
+    const valorComDesconto = valorMensal * 0.9;
+    return valorComDesconto;
+  };
+  const calcularParcelas = (valorTotal, numeroParcelas) => {
+    if (numeroParcelas <= 0) return 0;
+    return valorTotal / numeroParcelas;
+  };
+  const gerarReservasMensais = (dadosReserva) => {
+    const reservasGeradas = [];
+    const [ano, mes] = dadosReserva.mesReferencia.split("-");
+    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+    const diasSemanaMap = {
+      "domingo": 0,
+      "segunda": 1,
+      "terca": 2,
+      "quarta": 3,
+      "quinta": 4,
+      "sexta": 5,
+      "sabado": 6
+    };
+    for (let dia = 1; dia <= diasDoMes; dia++) {
+      const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const diaSemanaAtual = dataAtual.getDay();
+      const diaCoincide = dadosReserva.diasSemana.some(
+        (diaSelecionado) => diasSemanaMap[diaSelecionado] === diaSemanaAtual
+      );
+      if (diaCoincide) {
+        const dataFormatada = dataAtual.toISOString().split("T")[0];
+        const conflito = reservas.some(
+          (r) => r.data === dataFormatada && r.quadraId === dadosReserva.quadraId && (r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio)
+        );
+        if (!conflito) {
+          reservasGeradas.push({
+            id: Date.now() + Math.random(),
+            quadraId: dadosReserva.quadraId,
+            clienteId: dadosReserva.clienteId,
+            data: dataFormatada,
+            horaInicio: dadosReserva.horaInicio,
+            horaFim: dadosReserva.horaFim,
+            valor: dadosReserva.valorPorSessao,
+            status: dadosReserva.status,
+            statusPagamento: "Pendente",
+            valorPago: 0,
+            tipoReserva: "mensal",
+            mesReferencia: dadosReserva.mesReferencia,
+            reservaMensalId: dadosReserva.reservaMensalId,
+            observacoes: `Reserva mensal - ${dadosReserva.mesReferencia}. ${dadosReserva.observacoes || ""}`,
+            usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+            dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+      }
+    }
+    return reservasGeradas;
+  };
   const adicionarReserva = () => {
     const quadra = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
     if (!quadra) {
       alert("Selecione uma quadra v\xE1lida!");
       return;
     }
-    if (!formReserva.data || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId) {
-      alert("Preencha todos os campos obrigat\xF3rios!");
-      return;
+    if (formReserva.tipoReserva === "mensal") {
+      if (!formReserva.mesReferencia || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId || formReserva.diasSemana.length === 0) {
+        alert("Para reserva mensal, preencha: m\xEAs de refer\xEAncia, hor\xE1rios, cliente e pelo menos um dia da semana!");
+        return;
+      }
+    } else {
+      if (!formReserva.data || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId) {
+        alert("Preencha todos os campos obrigat\xF3rios!");
+        return;
+      }
     }
     const reservasNoDia = reservas.filter(
       (r) => r.data === formReserva.data && r.quadraId === parseInt(formReserva.quadraId) && (!editingItem || r.id !== editingItem.id)
@@ -370,18 +457,76 @@ var QuadraManagementSystem = () => {
       ));
       registrarAtividade("RESERVA_EDITADA", `Reserva editada - ${quadra.nome} em ${formReserva.data}`);
     } else {
-      const novaReserva = {
-        id: Date.now(),
-        ...formReserva,
-        quadraId: parseInt(formReserva.quadraId),
-        clienteId: parseInt(formReserva.clienteId),
-        valor: parseFloat(formReserva.valor) || valorCalculado,
-        valorPago: parseFloat(formReserva.valorPago) || 0,
-        usuarioResponsavel: usuarioLogado?.nome || "Sistema",
-        dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
-      };
-      setReservas([...reservas, novaReserva]);
-      registrarAtividade("RESERVA_CRIADA", `Nova reserva - ${quadra.nome} em ${formReserva.data}`);
+      if (formReserva.tipoReserva === "mensal") {
+        const valorMensal = calcularValorMensal();
+        const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
+        const valorPorSessao = valorMensal / (formReserva.diasSemana.length * 4.33);
+        const reservaMensalId = `mensal_${Date.now()}`;
+        const faturamentoMensal = {
+          id: Date.now(),
+          data: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+          cliente: clientes.find((c) => c.id === parseInt(formReserva.clienteId))?.nome || "Cliente",
+          mesLocacao: formReserva.mesReferencia,
+          hora: `${formReserva.horaInicio}-${formReserva.horaFim}`,
+          tipoQuadra: quadra.nome,
+          tipoLocacao: "Mensal",
+          reciboPagamento: `MENSAL-${reservaMensalId}`,
+          dataLocacao: formReserva.mesReferencia,
+          valor: valorMensal,
+          formaPagamento: formReserva.formaPagamento || "",
+          valorRecebido: parseFloat(formReserva.valorPago) || 0,
+          valorEmAberto: valorMensal - (parseFloat(formReserva.valorPago) || 0),
+          valorRealRecebido: parseFloat(formReserva.valorPago) || 0,
+          status: (parseFloat(formReserva.valorPago) || 0) >= valorMensal ? "Pago" : "Em Aberto",
+          usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+          dataLancamento: (/* @__PURE__ */ new Date()).toISOString(),
+          reservaMensalId,
+          numeroParcelas: formReserva.numeroParcelas,
+          valorParcela,
+          diasSemana: formReserva.diasSemana,
+          observacoes: `Reserva mensal - ${formReserva.diasSemana.join(", ")}. Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}. ${formReserva.observacoesMensal || ""}`
+        };
+        const reservasIndividuais = gerarReservasMensais({
+          ...formReserva,
+          quadraId: parseInt(formReserva.quadraId),
+          clienteId: parseInt(formReserva.clienteId),
+          valorPorSessao,
+          reservaMensalId
+        });
+        setFaturamentos([...faturamentos, faturamentoMensal]);
+        setReservas([...reservas, ...reservasIndividuais]);
+        registrarAtividade(
+          "RESERVA_MENSAL_CRIADA",
+          `Nova reserva mensal - ${quadra.nome} - ${formReserva.mesReferencia} - ${reservasIndividuais.length} sess\xF5es geradas`
+        );
+        alert(
+          `\u2705 Reserva mensal criada com sucesso!
+
+\u{1F4CA} Resumo:
+\u2022 Quadra: ${quadra.nome}
+\u2022 M\xEAs: ${formReserva.mesReferencia}
+\u2022 Dias: ${formReserva.diasSemana.join(", ")}
+\u2022 Hor\xE1rio: ${formReserva.horaInicio} - ${formReserva.horaFim}
+\u2022 Valor total: R$ ${valorMensal.toFixed(2)}
+\u2022 Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}
+\u2022 Sess\xF5es geradas: ${reservasIndividuais.length}
+\u2022 Desconto aplicado: 10%`
+        );
+      } else {
+        const novaReserva = {
+          id: Date.now(),
+          ...formReserva,
+          quadraId: parseInt(formReserva.quadraId),
+          clienteId: parseInt(formReserva.clienteId),
+          valor: parseFloat(formReserva.valor) || valorCalculado,
+          valorPago: parseFloat(formReserva.valorPago) || 0,
+          tipoReserva: "avulsa",
+          usuarioResponsavel: usuarioLogado?.nome || "Sistema",
+          dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        setReservas([...reservas, novaReserva]);
+        registrarAtividade("RESERVA_CRIADA", `Nova reserva - ${quadra.nome} em ${formReserva.data}`);
+      }
     }
     fecharModal();
   };
@@ -499,7 +644,16 @@ var QuadraManagementSystem = () => {
       valorPago: "",
       formaPagamento: "",
       dataPagamento: "",
-      observacoes: ""
+      observacoes: "",
+      // Campos para reserva mensal
+      tipoReserva: "avulsa",
+      mesReferencia: "",
+      diasSemana: [],
+      valorMensal: 0,
+      numeroParcelas: 1,
+      valorParcela: 0,
+      dataVencimentoPrimeiraParcela: "",
+      observacoesMensal: ""
     });
     setFormAdmin({ nome: "", usuario: "", senha: "", cargo: "" });
     setFormFaturamento({
@@ -707,6 +861,17 @@ Detalhes: ${error.message}`);
       }
     }).filter((backup) => backup !== null).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
+  useEffect(() => {
+    if (formReserva.tipoReserva === "mensal" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0) {
+      const valorMensal = calcularValorMensal();
+      const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
+      setFormReserva((prev) => ({
+        ...prev,
+        valorMensal,
+        valorParcela
+      }));
+    }
+  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva]);
   useEffect(() => {
     if (!configuracaoBackup.autoBackup) return;
     const verificarBackupAutomatico = () => {
@@ -1105,7 +1270,14 @@ Detalhes: ${error.message}`);
       /* @__PURE__ */ React.createElement(IconComponent, { className: "h-5 w-5" }),
       /* @__PURE__ */ React.createElement("span", { className: "text-xs" }, label)
     );
-  })), /* @__PURE__ */ React.createElement("div", { className: "bg-gray-800 text-center py-1" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-300" }, "\xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI \u2022 v2.1.0"))), /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 pb-24 md:pb-16" }, activeTab === "dashboard" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Hoje"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, reservasHoje.length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "M\xE1x: ", quadras.filter((q) => q.ativa).length * 6)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(DollarSign, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Receita"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-2xl font-bold text-gray-900" }, "R$ ", receitaMensal.toFixed(0))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Clientes"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, clientes.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-6 w-6 md:h-8 md:w-8 text-orange-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Quadras"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, quadras.filter((q) => q.ativa).length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "6 slots/dia \u2022 5min intervalo"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Pr\xF3ximas Reservas")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, reservas.slice(0, 5).map((reserva) => {
+  })), /* @__PURE__ */ React.createElement("div", { className: "bg-gray-800 text-center py-1" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-300" }, "\xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI \u2022 v2.1.0"))), /* @__PURE__ */ React.createElement("div", { className: "p-3 md:p-6 pb-24 md:pb-16" }, activeTab === "dashboard" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-6 w-6 md:h-8 md:w-8 text-blue-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Hoje"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, reservasHoje.length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "M\xE1x: ", quadras.filter((q) => q.ativa).length * 6)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(DollarSign, { className: "h-6 w-6 md:h-8 md:w-8 text-green-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Receita"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-2xl font-bold text-gray-900" }, "R$ ", receitaMensal.toFixed(0))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Clientes"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, clientes.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-6 w-6 md:h-8 md:w-8 text-orange-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Quadras"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, quadras.filter((q) => q.ativa).length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "6 slots/dia \u2022 5min intervalo")))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-3 md:p-6 rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-6 w-6 md:h-8 md:w-8 text-purple-500" }), /* @__PURE__ */ React.createElement("div", { className: "ml-2 md:ml-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-gray-600" }, "Mensais"), /* @__PURE__ */ React.createElement("p", { className: "text-lg md:text-2xl font-bold text-gray-900" }, faturamentos.filter(
+    (f) => f.tipoLocacao === "Mensal" && f.mesLocacao >= (/* @__PURE__ */ new Date()).toISOString().slice(0, 7)
+  ).length), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, "Contratos mensais ativos"))))), (() => {
+    const reservasMensaisAtivas = faturamentos.filter(
+      (f) => f.tipoLocacao === "Mensal" && f.valorEmAberto > 0 && f.mesLocacao >= (/* @__PURE__ */ new Date()).toISOString().slice(0, 7)
+    );
+    return reservasMensaisAtivas.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "\u{1F4C5} Reservas Mensais Ativas")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, reservasMensaisAtivas.slice(0, 3).map((faturamento) => /* @__PURE__ */ React.createElement("div", { key: faturamento.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, faturamento.cliente), /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800" }, "MENSAL")), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, faturamento.tipoQuadra, " - ", faturamento.mesLocacao), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, faturamento.hora), faturamento.diasSemana && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-purple-600" }, "Dias: ", faturamento.diasSemana.join(", "))), /* @__PURE__ */ React.createElement("div", { className: "text-right ml-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-purple-600" }, "R$ ", faturamento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-red-600" }, "Em aberto: R$ ", faturamento.valorEmAberto?.toFixed(2)), faturamento.numeroParcelas > 1 && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, faturamento.numeroParcelas, "x R$ ", faturamento.valorParcela?.toFixed(2)))))));
+  })(), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Pr\xF3ximas Reservas")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, reservas.slice(0, 5).map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
     return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, cliente?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, reserva.data, " \xE0s ", reserva.horaInicio)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full whitespace-nowrap ml-2 ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status));
@@ -1140,7 +1312,7 @@ Detalhes: ${error.message}`);
   ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`, reserva.dataPagamento && ` \u2022 Data: ${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}`), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium" }, "\u{1F4C5} MENSAL")), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome), reserva.tipoReserva === "mensal" && reserva.mesReferencia && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-purple-600 font-medium" }, "M\xEAs: ", reserva.mesReferencia)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`, reserva.dataPagamento && ` \u2022 Data: ${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}`), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -1158,7 +1330,7 @@ Detalhes: ${error.message}`);
   }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim, reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-purple-600 font-medium" }, "\u{1F4C5} Mensal: ", reserva.mesReferencia)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, quadra?.nome, reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800" }, "MENSAL"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -2002,7 +2174,23 @@ Detalhes: ${error.message}`);
       className: "w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
     },
     editingItem ? "Atualizar" : "Adicionar"
-  )), modalType === "reserva" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
+  )), modalType === "reserva" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "border border-blue-200 rounded-lg p-3 bg-blue-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-blue-800 mb-2" }, "Tipo de Reserva"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick: () => setFormReserva({ ...formReserva, tipoReserva: "avulsa" }),
+      className: `p-3 rounded-lg border text-sm font-medium ${formReserva.tipoReserva === "avulsa" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`
+    },
+    "\u{1F3AF} Reserva Avulsa"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick: () => setFormReserva({ ...formReserva, tipoReserva: "mensal" }),
+      className: `p-3 rounded-lg border text-sm font-medium ${formReserva.tipoReserva === "mensal" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-blue-600 border-blue-300 hover:bg-blue-50"}`
+    },
+    "\u{1F4C5} Reserva Mensal"
+  ))), /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formReserva.quadraId,
@@ -2020,15 +2208,53 @@ Detalhes: ${error.message}`);
     },
     /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione o cliente"),
     clientes.map((cliente) => /* @__PURE__ */ React.createElement("option", { key: cliente.id, value: cliente.id }, cliente.nome))
-  ), /* @__PURE__ */ React.createElement(
+  ), formReserva.tipoReserva === "avulsa" ? /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
       value: formReserva.data,
       onChange: (e) => setFormReserva({ ...formReserva, data: e.target.value }),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
+      placeholder: "Data da reserva"
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+  ) : /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "M\xEAs de Refer\xEAncia"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "month",
+      value: formReserva.mesReferencia,
+      onChange: (e) => setFormReserva({ ...formReserva, mesReferencia: e.target.value }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
+      placeholder: "Selecione o m\xEAs"
+    }
+  )), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-green-800 mb-3" }, "Dias da Semana"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [
+    { key: "segunda", label: "Segunda-feira" },
+    { key: "terca", label: "Ter\xE7a-feira" },
+    { key: "quarta", label: "Quarta-feira" },
+    { key: "quinta", label: "Quinta-feira" },
+    { key: "sexta", label: "Sexta-feira" },
+    { key: "sabado", label: "S\xE1bado" },
+    { key: "domingo", label: "Domingo" }
+  ].map((dia) => /* @__PURE__ */ React.createElement("label", { key: dia.key, className: "flex items-center space-x-2 text-sm" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: formReserva.diasSemana.includes(dia.key),
+      onChange: (e) => {
+        if (e.target.checked) {
+          setFormReserva({
+            ...formReserva,
+            diasSemana: [...formReserva.diasSemana, dia.key]
+          });
+        } else {
+          setFormReserva({
+            ...formReserva,
+            diasSemana: formReserva.diasSemana.filter((d) => d !== dia.key)
+          });
+        }
+      },
+      className: "w-4 h-4 text-green-600"
+    }
+  ), /* @__PURE__ */ React.createElement("span", { className: "text-green-700" }, dia.label))))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "time",
@@ -2050,16 +2276,38 @@ Detalhes: ${error.message}`);
       min: "07:00",
       max: "23:00"
     }
-  )), formReserva.data && formReserva.quadraId && /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "Disponibilidade:"), (() => {
-    const reservasNoDia = reservas.filter(
-      (r) => r.data === formReserva.data && r.quadraId === parseInt(formReserva.quadraId) && (!editingItem || r.id !== editingItem.id)
-    );
+  )), formReserva.tipoReserva === "mensal" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "border border-purple-200 rounded-lg p-4 bg-purple-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-purple-800 mb-3" }, "\u{1F4B0} C\xE1lculo da Reserva Mensal"), (() => {
+    const valorMensal = calcularValorMensal();
     const quadraSelecionada = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
-    return /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", null, "\u2022 Quadra: ", /* @__PURE__ */ React.createElement("strong", null, quadraSelecionada?.nome)), /* @__PURE__ */ React.createElement("p", null, "\u2022 Data: ", /* @__PURE__ */ React.createElement("strong", null, (/* @__PURE__ */ new Date(formReserva.data + "T00:00:00")).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("p", null, "\u2022 Reservas no dia: ", /* @__PURE__ */ React.createElement("strong", null, reservasNoDia.length, "/6")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Hor\xE1rio de funcionamento: ", /* @__PURE__ */ React.createElement("strong", null, "06:00 \xE0s 23:00")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Intervalo entre reservas: ", /* @__PURE__ */ React.createElement("strong", null, "m\xEDnimo 5 minutos")), reservasNoDia.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium" }, "Hor\xE1rios ocupados:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, reservasNoDia.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((r, idx) => {
-      const cliente = clientes.find((c) => c.id === r.clienteId);
-      return /* @__PURE__ */ React.createElement("div", { key: idx, className: "text-xs bg-white p-2 rounded border" }, /* @__PURE__ */ React.createElement("strong", null, r.horaInicio, " - ", r.horaFim), " \u2022 ", cliente?.nome);
-    }))), reservasNoDia.length >= 6 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700" }, /* @__PURE__ */ React.createElement("strong", null, "\u26A0\uFE0F Limite atingido!"), " Esta quadra j\xE1 possui 6 reservas neste dia."));
-  })())), /* @__PURE__ */ React.createElement(
+    const horaInicio = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
+    const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
+    const minutos = (horaFim - horaInicio) / (1e3 * 60);
+    const horas = minutos / 60;
+    const valorSessao = horas * (quadraSelecionada?.valorHora || 0);
+    const sessoesPorMes = Math.round(formReserva.diasSemana.length * 4.33);
+    const valorSemDesconto = valorSessao * sessoesPorMes;
+    const desconto = valorSemDesconto * 0.1;
+    return /* @__PURE__ */ React.createElement("div", { className: "text-sm text-purple-700 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Valor por sess\xE3o:"), /* @__PURE__ */ React.createElement("br", null), "R$ ", valorSessao.toFixed(2), " (", horas.toFixed(1), "h \xD7 R$ ", quadraSelecionada?.valorHora, ")"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Sess\xF5es/m\xEAs:"), /* @__PURE__ */ React.createElement("br", null), sessoesPorMes, " (", formReserva.diasSemana.length, " dias \xD7 4.33 semanas)")), /* @__PURE__ */ React.createElement("div", { className: "border-t border-purple-300 pt-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", null, "Valor sem desconto:"), /* @__PURE__ */ React.createElement("span", null, "R$ ", valorSemDesconto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between text-green-600" }, /* @__PURE__ */ React.createElement("span", null, "Desconto mensal (10%):"), /* @__PURE__ */ React.createElement("span", null, "- R$ ", desconto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between font-bold text-lg border-t border-purple-300 pt-1" }, /* @__PURE__ */ React.createElement("span", null, "Valor total mensal:"), /* @__PURE__ */ React.createElement("span", null, "R$ ", valorMensal.toFixed(2)))));
+  })()), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-orange-200 rounded-lg p-4 bg-orange-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-orange-800 mb-3" }, "\u{1F4B3} Op\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "N\xFAmero de Parcelas"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: formReserva.numeroParcelas,
+      onChange: (e) => setFormReserva({ ...formReserva, numeroParcelas: parseInt(e.target.value) }),
+      className: "w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: 1 }, "\xC0 vista (1x)"),
+    /* @__PURE__ */ React.createElement("option", { value: 2 }, "2x sem juros"),
+    /* @__PURE__ */ React.createElement("option", { value: 3 }, "3x sem juros"),
+    /* @__PURE__ */ React.createElement("option", { value: 4 }, "4x sem juros")
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "Valor da Parcela"), /* @__PURE__ */ React.createElement("div", { className: "px-3 py-2 bg-orange-100 border border-orange-300 rounded-md text-sm font-medium text-orange-800" }, formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 ? `R$ ${calcularParcelas(calcularValorMensal(), formReserva.numeroParcelas).toFixed(2)}` : "R$ 0,00"))), formReserva.numeroParcelas > 1 && /* @__PURE__ */ React.createElement("div", { className: "mt-3" }, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "Vencimento da 1\xAA Parcela"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      value: formReserva.dataVencimentoPrimeiraParcela,
+      onChange: (e) => setFormReserva({ ...formReserva, dataVencimentoPrimeiraParcela: e.target.value }),
+      className: "w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+    }
+  ))), formReserva.tipoReserva === "avulsa" && /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
@@ -2068,7 +2316,16 @@ Detalhes: ${error.message}`);
       onChange: (e) => setFormReserva({ ...formReserva, valor: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+  ), formReserva.tipoReserva === "avulsa" && formReserva.data && formReserva.quadraId && /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "Disponibilidade:"), (() => {
+    const reservasNoDia = reservas.filter(
+      (r) => r.data === formReserva.data && r.quadraId === parseInt(formReserva.quadraId) && (!editingItem || r.id !== editingItem.id)
+    );
+    const quadraSelecionada = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
+    return /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", null, "\u2022 Quadra: ", /* @__PURE__ */ React.createElement("strong", null, quadraSelecionada?.nome)), /* @__PURE__ */ React.createElement("p", null, "\u2022 Data: ", /* @__PURE__ */ React.createElement("strong", null, (/* @__PURE__ */ new Date(formReserva.data + "T00:00:00")).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("p", null, "\u2022 Reservas no dia: ", /* @__PURE__ */ React.createElement("strong", null, reservasNoDia.length, "/6")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Hor\xE1rio de funcionamento: ", /* @__PURE__ */ React.createElement("strong", null, "06:00 \xE0s 23:00")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Intervalo entre reservas: ", /* @__PURE__ */ React.createElement("strong", null, "m\xEDnimo 5 minutos")), reservasNoDia.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium" }, "Hor\xE1rios ocupados:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, reservasNoDia.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((r, idx) => {
+      const cliente = clientes.find((c) => c.id === r.clienteId);
+      return /* @__PURE__ */ React.createElement("div", { key: idx, className: "text-xs bg-white p-2 rounded border" }, /* @__PURE__ */ React.createElement("strong", null, r.horaInicio, " - ", r.horaFim), " \u2022 ", cliente?.nome);
+    }))), reservasNoDia.length >= 6 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700" }, /* @__PURE__ */ React.createElement("strong", null, "\u26A0\uFE0F Limite atingido!"), " Esta quadra j\xE1 possui 6 reservas neste dia."));
+  })())), formReserva.tipoReserva === "avulsa" && /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formReserva.status,
@@ -2097,7 +2354,7 @@ Detalhes: ${error.message}`);
     /* @__PURE__ */ React.createElement("option", { value: "Pendente" }, "Pendente"),
     /* @__PURE__ */ React.createElement("option", { value: "Parcial" }, "Parcial"),
     /* @__PURE__ */ React.createElement("option", { value: "Pago" }, "Pago")
-  )), formReserva.statusPagamento !== "Pendente" && /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 border border-green-200 rounded-lg p-3 space-y-3" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800" }, "Informa\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+  )), formReserva.tipoReserva === "avulsa" && formReserva.statusPagamento !== "Pendente" && /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 border border-green-200 rounded-lg p-3 space-y-3" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800" }, "Informa\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
@@ -2144,12 +2401,40 @@ Detalhes: ${error.message}`);
     /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
     /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o"),
     /* @__PURE__ */ React.createElement("option", { value: "Cheque" }, "Cheque")
-  ), formReserva.valorPago && formReserva.valor && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo:"), " R$ ", ((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2), parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && " \u2713 Pago")), /* @__PURE__ */ React.createElement(
+  ), formReserva.valorPago && formReserva.valor && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo:"), " R$ ", ((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2), parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && " \u2713 Pago")), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800 mb-3" }, "\u{1F4B0} Pagamento Inicial (Opcional)"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
+      placeholder: "Valor pago na reserva",
+      value: formReserva.valorPago,
+      onChange: (e) => setFormReserva({ ...formReserva, valorPago: e.target.value }),
+      className: "w-full px-3 py-2 border border-green-300 rounded-md text-sm"
+    }
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: formReserva.formaPagamento,
+      onChange: (e) => setFormReserva({ ...formReserva, formaPagamento: e.target.value }),
+      className: "w-full px-3 py-2 border border-green-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
+    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
+    /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
+    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
+    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o")
+  ))), formReserva.valorPago && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo restante:"), " R$ ", (calcularValorMensal() - parseFloat(formReserva.valorPago || 0)).toFixed(2))), /* @__PURE__ */ React.createElement(
     "textarea",
     {
-      placeholder: "Observa\xE7\xF5es (opcional)",
-      value: formReserva.observacoes,
-      onChange: (e) => setFormReserva({ ...formReserva, observacoes: e.target.value }),
+      placeholder: formReserva.tipoReserva === "mensal" ? "Observa\xE7\xF5es sobre a reserva mensal (opcional)" : "Observa\xE7\xF5es (opcional)",
+      value: formReserva.tipoReserva === "mensal" ? formReserva.observacoesMensal : formReserva.observacoes,
+      onChange: (e) => {
+        if (formReserva.tipoReserva === "mensal") {
+          setFormReserva({ ...formReserva, observacoesMensal: e.target.value });
+        } else {
+          setFormReserva({ ...formReserva, observacoes: e.target.value });
+        }
+      },
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
       rows: "3"
     }

@@ -69,7 +69,16 @@ const QuadraManagementSystem = () => {
     valorPago: '',
     formaPagamento: '',
     dataPagamento: '',
-    observacoes: ''
+    observacoes: '',
+    // Campos para reserva mensal
+    tipoReserva: 'avulsa', // 'avulsa' ou 'mensal'
+    mesReferencia: '',
+    diasSemana: [], // array com dias da semana selecionados
+    valorMensal: 0,
+    numeroParcelas: 1,
+    valorParcela: 0,
+    dataVencimentoPrimeiraParcela: '',
+    observacoesMensal: ''
   });
   const [formAdmin, setFormAdmin] = useState({ nome: '', usuario: '', senha: '', cargo: '' });
   const [formFaturamento, setFormFaturamento] = useState({
@@ -354,6 +363,105 @@ const QuadraManagementSystem = () => {
     }
   };
 
+  // Função para calcular valor mensal
+  const calcularValorMensal = () => {
+    if (!formReserva.quadraId || !formReserva.horaInicio || !formReserva.horaFim || formReserva.diasSemana.length === 0) {
+      return 0;
+    }
+    
+    const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+    if (!quadra) return 0;
+    
+    // Calcular duração em horas
+    const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
+    const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
+    const minutos = (horaFim - horaInicio) / (1000 * 60);
+    const horas = minutos / 60;
+    
+    // Valor por sessão
+    const valorSessao = horas * quadra.valorHora;
+    
+    // Calcular número de sessões no mês (aproximadamente 4.33 semanas por mês)
+    const sessoesPorSemana = formReserva.diasSemana.length;
+    const sessoesPorMes = Math.round(sessoesPorSemana * 4.33);
+    
+    const valorMensal = valorSessao * sessoesPorMes;
+    
+    // Aplicar desconto para reservas mensais (10% de desconto)
+    const valorComDesconto = valorMensal * 0.9;
+    
+    return valorComDesconto;
+  };
+
+  // Função para calcular valor das parcelas
+  const calcularParcelas = (valorTotal, numeroParcelas) => {
+    if (numeroParcelas <= 0) return 0;
+    return valorTotal / numeroParcelas;
+  };
+
+  // Função para gerar reservas mensais
+  const gerarReservasMensais = (dadosReserva) => {
+    const reservasGeradas = [];
+    const [ano, mes] = dadosReserva.mesReferencia.split('-');
+    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+    
+    // Mapeamento dos dias da semana
+    const diasSemanaMap = {
+      'domingo': 0,
+      'segunda': 1,
+      'terca': 2,
+      'quarta': 3,
+      'quinta': 4,
+      'sexta': 5,
+      'sabado': 6
+    };
+    
+    // Gerar reservas para cada dia do mês que coincida com os dias selecionados
+    for (let dia = 1; dia <= diasDoMes; dia++) {
+      const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const diaSemanaAtual = dataAtual.getDay();
+      
+      // Verificar se este dia coincide com algum dos dias selecionados
+      const diaCoincide = dadosReserva.diasSemana.some(diaSelecionado => 
+        diasSemanaMap[diaSelecionado] === diaSemanaAtual
+      );
+      
+      if (diaCoincide) {
+        const dataFormatada = dataAtual.toISOString().split('T')[0];
+        
+        // Verificar se não há conflito com reservas existentes
+        const conflito = reservas.some(r => 
+          r.data === dataFormatada && 
+          r.quadraId === dadosReserva.quadraId &&
+          ((r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio))
+        );
+        
+        if (!conflito) {
+          reservasGeradas.push({
+            id: Date.now() + Math.random(),
+            quadraId: dadosReserva.quadraId,
+            clienteId: dadosReserva.clienteId,
+            data: dataFormatada,
+            horaInicio: dadosReserva.horaInicio,
+            horaFim: dadosReserva.horaFim,
+            valor: dadosReserva.valorPorSessao,
+            status: dadosReserva.status,
+            statusPagamento: 'Pendente',
+            valorPago: 0,
+            tipoReserva: 'mensal',
+            mesReferencia: dadosReserva.mesReferencia,
+            reservaMensalId: dadosReserva.reservaMensalId,
+            observacoes: `Reserva mensal - ${dadosReserva.mesReferencia}. ${dadosReserva.observacoes || ''}`,
+            usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+            dataLancamento: new Date().toISOString()
+          });
+        }
+      }
+    }
+    
+    return reservasGeradas;
+  };
+
   // Funções para Reservas
   const adicionarReserva = () => {
     const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
@@ -364,10 +472,17 @@ const QuadraManagementSystem = () => {
       return;
     }
     
-    // Validar campos obrigatórios
-    if (!formReserva.data || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId) {
-      alert('Preencha todos os campos obrigatórios!');
-      return;
+    // Validar campos obrigatórios baseado no tipo de reserva
+    if (formReserva.tipoReserva === 'mensal') {
+      if (!formReserva.mesReferencia || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId || formReserva.diasSemana.length === 0) {
+        alert('Para reserva mensal, preencha: mês de referência, horários, cliente e pelo menos um dia da semana!');
+        return;
+      }
+    } else {
+      if (!formReserva.data || !formReserva.horaInicio || !formReserva.horaFim || !formReserva.clienteId) {
+        alert('Preencha todos os campos obrigatórios!');
+        return;
+      }
     }
     
     // Verificar conflito de horários (apenas para novas reservas ou quando mudar horário/data)
@@ -430,6 +545,7 @@ const QuadraManagementSystem = () => {
     const valorCalculado = horas * quadra.valorHora;
 
     if (editingItem) {
+      // Edição de reserva existente
       setReservas(reservas.map(r => r.id === editingItem.id ? 
         { 
           ...formReserva, 
@@ -444,18 +560,86 @@ const QuadraManagementSystem = () => {
       ));
       registrarAtividade('RESERVA_EDITADA', `Reserva editada - ${quadra.nome} em ${formReserva.data}`);
     } else {
-      const novaReserva = {
-        id: Date.now(),
-        ...formReserva,
-        quadraId: parseInt(formReserva.quadraId),
-        clienteId: parseInt(formReserva.clienteId),
-        valor: parseFloat(formReserva.valor) || valorCalculado,
-        valorPago: parseFloat(formReserva.valorPago) || 0,
-        usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
-        dataLancamento: new Date().toISOString()
-      };
-      setReservas([...reservas, novaReserva]);
-      registrarAtividade('RESERVA_CRIADA', `Nova reserva - ${quadra.nome} em ${formReserva.data}`);
+      // Nova reserva
+      if (formReserva.tipoReserva === 'mensal') {
+        // Processar reserva mensal
+        const valorMensal = calcularValorMensal();
+        const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
+        const valorPorSessao = valorMensal / (formReserva.diasSemana.length * 4.33);
+        
+        const reservaMensalId = `mensal_${Date.now()}`;
+        
+        // Criar faturamento mensal principal
+        const faturamentoMensal = {
+          id: Date.now(),
+          data: new Date().toISOString().split('T')[0],
+          cliente: clientes.find(c => c.id === parseInt(formReserva.clienteId))?.nome || 'Cliente',
+          mesLocacao: formReserva.mesReferencia,
+          hora: `${formReserva.horaInicio}-${formReserva.horaFim}`,
+          tipoQuadra: quadra.nome,
+          tipoLocacao: 'Mensal',
+          reciboPagamento: `MENSAL-${reservaMensalId}`,
+          dataLocacao: formReserva.mesReferencia,
+          valor: valorMensal,
+          formaPagamento: formReserva.formaPagamento || '',
+          valorRecebido: parseFloat(formReserva.valorPago) || 0,
+          valorEmAberto: valorMensal - (parseFloat(formReserva.valorPago) || 0),
+          valorRealRecebido: parseFloat(formReserva.valorPago) || 0,
+          status: (parseFloat(formReserva.valorPago) || 0) >= valorMensal ? 'Pago' : 'Em Aberto',
+          usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+          dataLancamento: new Date().toISOString(),
+          reservaMensalId: reservaMensalId,
+          numeroParcelas: formReserva.numeroParcelas,
+          valorParcela: valorParcela,
+          diasSemana: formReserva.diasSemana,
+          observacoes: `Reserva mensal - ${formReserva.diasSemana.join(', ')}. Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}. ${formReserva.observacoesMensal || ''}`
+        };
+        
+        // Gerar as reservas individuais do mês
+        const reservasIndividuais = gerarReservasMensais({
+          ...formReserva,
+          quadraId: parseInt(formReserva.quadraId),
+          clienteId: parseInt(formReserva.clienteId),
+          valorPorSessao: valorPorSessao,
+          reservaMensalId: reservaMensalId
+        });
+        
+        // Adicionar faturamento e reservas
+        setFaturamentos([...faturamentos, faturamentoMensal]);
+        setReservas([...reservas, ...reservasIndividuais]);
+        
+        registrarAtividade('RESERVA_MENSAL_CRIADA', 
+          `Nova reserva mensal - ${quadra.nome} - ${formReserva.mesReferencia} - ${reservasIndividuais.length} sessões geradas`
+        );
+        
+        alert(`✅ Reserva mensal criada com sucesso!\n\n` +
+              `📊 Resumo:\n` +
+              `• Quadra: ${quadra.nome}\n` +
+              `• Mês: ${formReserva.mesReferencia}\n` +
+              `• Dias: ${formReserva.diasSemana.join(', ')}\n` +
+              `• Horário: ${formReserva.horaInicio} - ${formReserva.horaFim}\n` +
+              `• Valor total: R$ ${valorMensal.toFixed(2)}\n` +
+              `• Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}\n` +
+              `• Sessões geradas: ${reservasIndividuais.length}\n` +
+              `• Desconto aplicado: 10%`
+        );
+        
+      } else {
+        // Reserva avulsa normal
+        const novaReserva = {
+          id: Date.now(),
+          ...formReserva,
+          quadraId: parseInt(formReserva.quadraId),
+          clienteId: parseInt(formReserva.clienteId),
+          valor: parseFloat(formReserva.valor) || valorCalculado,
+          valorPago: parseFloat(formReserva.valorPago) || 0,
+          tipoReserva: 'avulsa',
+          usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
+          dataLancamento: new Date().toISOString()
+        };
+        setReservas([...reservas, novaReserva]);
+        registrarAtividade('RESERVA_CRIADA', `Nova reserva - ${quadra.nome} em ${formReserva.data}`);
+      }
     }
     fecharModal();
   };
@@ -591,7 +775,16 @@ const QuadraManagementSystem = () => {
       valorPago: '',
       formaPagamento: '',
       dataPagamento: '',
-      observacoes: ''
+      observacoes: '',
+      // Campos para reserva mensal
+      tipoReserva: 'avulsa',
+      mesReferencia: '',
+      diasSemana: [],
+      valorMensal: 0,
+      numeroParcelas: 1,
+      valorParcela: 0,
+      dataVencimentoPrimeiraParcela: '',
+      observacoesMensal: ''
     });
     setFormAdmin({ nome: '', usuario: '', senha: '', cargo: '' });
     setFormFaturamento({
@@ -835,6 +1028,25 @@ const QuadraManagementSystem = () => {
     }).filter(backup => backup !== null)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
+
+  // Atualizar cálculos automaticamente para reserva mensal
+  useEffect(() => {
+    if (formReserva.tipoReserva === 'mensal' && 
+        formReserva.quadraId && 
+        formReserva.horaInicio && 
+        formReserva.horaFim && 
+        formReserva.diasSemana.length > 0) {
+      
+      const valorMensal = calcularValorMensal();
+      const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
+      
+      setFormReserva(prev => ({
+        ...prev,
+        valorMensal: valorMensal,
+        valorParcela: valorParcela
+      }));
+    }
+  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva]);
 
   // Backup automático diário
   useEffect(() => {
@@ -1410,7 +1622,7 @@ const QuadraManagementSystem = () => {
           {/* Dashboard */}
           {activeTab === 'dashboard' && (
             <div className="space-y-4 md:space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
                 <div className="bg-white p-3 md:p-6 rounded-lg shadow">
                   <div className="flex items-center">
                     <Calendar className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
@@ -1449,7 +1661,71 @@ const QuadraManagementSystem = () => {
                     </div>
                   </div>
                 </div>
+                <div className="bg-white p-3 md:p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <Calendar className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
+                    <div className="ml-2 md:ml-4">
+                      <p className="text-xs md:text-sm font-medium text-gray-600">Mensais</p>
+                      <p className="text-lg md:text-2xl font-bold text-gray-900">
+                        {faturamentos.filter(f => 
+                          f.tipoLocacao === 'Mensal' && 
+                          f.mesLocacao >= new Date().toISOString().slice(0, 7)
+                        ).length}
+                      </p>
+                      <p className="text-xs text-gray-500">Contratos mensais ativos</p>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Resumo Reservas Mensais */}
+              {(() => {
+                const reservasMensaisAtivas = faturamentos.filter(f => 
+                  f.tipoLocacao === 'Mensal' && 
+                  f.valorEmAberto > 0 &&
+                  f.mesLocacao >= new Date().toISOString().slice(0, 7)
+                );
+                
+                return reservasMensaisAtivas.length > 0 && (
+                  <div className="bg-white rounded-lg shadow">
+                    <div className="p-4 md:p-6 border-b">
+                      <h3 className="text-base md:text-lg font-medium text-gray-900">📅 Reservas Mensais Ativas</h3>
+                    </div>
+                    <div className="p-4 md:p-6">
+                      {reservasMensaisAtivas.slice(0, 3).map((faturamento) => (
+                        <div key={faturamento.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{faturamento.cliente}</p>
+                              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                                MENSAL
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 truncate">{faturamento.tipoQuadra} - {faturamento.mesLocacao}</p>
+                            <p className="text-xs text-gray-500">{faturamento.hora}</p>
+                            {faturamento.diasSemana && (
+                              <p className="text-xs text-purple-600">
+                                Dias: {faturamento.diasSemana.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right ml-2">
+                            <p className="font-medium text-purple-600">R$ {faturamento.valor?.toFixed(2)}</p>
+                            <p className="text-xs text-red-600">
+                              Em aberto: R$ {faturamento.valorEmAberto?.toFixed(2)}
+                            </p>
+                            {faturamento.numeroParcelas > 1 && (
+                              <p className="text-xs text-gray-500">
+                                {faturamento.numeroParcelas}x R$ {faturamento.valorParcela?.toFixed(2)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Próximas Reservas */}
               <div className="bg-white rounded-lg shadow">
@@ -1532,8 +1808,20 @@ const QuadraManagementSystem = () => {
                     <div key={reserva.id} className="bg-white rounded-lg shadow p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">{quadra?.nome}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-gray-900">{quadra?.nome}</h3>
+                            {reserva.tipoReserva === 'mensal' && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium">
+                                📅 MENSAL
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-600">{cliente?.nome}</p>
+                          {reserva.tipoReserva === 'mensal' && reserva.mesReferencia && (
+                            <p className="text-xs text-purple-600 font-medium">
+                              Mês: {reserva.mesReferencia}
+                            </p>
+                          )}
                         </div>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
@@ -1620,8 +1908,22 @@ const QuadraManagementSystem = () => {
                           <tr key={reserva.id}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {reserva.data} {reserva.horaInicio}-{reserva.horaFim}
+                              {reserva.tipoReserva === 'mensal' && (
+                                <div className="text-xs text-purple-600 font-medium">
+                                  📅 Mensal: {reserva.mesReferencia}
+                                </div>
+                              )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quadra?.nome}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center gap-2">
+                                {quadra?.nome}
+                                {reserva.tipoReserva === 'mensal' && (
+                                  <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                                    MENSAL
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente?.nome}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">R$ {reserva.valor?.toFixed(2)}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -3827,6 +4129,35 @@ const QuadraManagementSystem = () => {
 
               {modalType === 'reserva' && (
                 <div className="space-y-4">
+                  {/* Tipo de Reserva */}
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                    <label className="block text-sm font-medium text-blue-800 mb-2">Tipo de Reserva</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormReserva({...formReserva, tipoReserva: 'avulsa'})}
+                        className={`p-3 rounded-lg border text-sm font-medium ${
+                          formReserva.tipoReserva === 'avulsa' 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        🎯 Reserva Avulsa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormReserva({...formReserva, tipoReserva: 'mensal'})}
+                        className={`p-3 rounded-lg border text-sm font-medium ${
+                          formReserva.tipoReserva === 'mensal' 
+                            ? 'bg-blue-600 text-white border-blue-600' 
+                            : 'bg-white text-blue-600 border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        📅 Reserva Mensal
+                      </button>
+                    </div>
+                  </div>
+
                   <select
                     value={formReserva.quadraId}
                     onChange={(e) => setFormReserva({...formReserva, quadraId: e.target.value})}
@@ -3847,12 +4178,68 @@ const QuadraManagementSystem = () => {
                       <option key={cliente.id} value={cliente.id}>{cliente.nome}</option>
                     ))}
                   </select>
-                  <input
-                    type="date"
-                    value={formReserva.data}
-                    onChange={(e) => setFormReserva({...formReserva, data: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  />
+
+                  {/* Data ou Mês de Referência */}
+                  {formReserva.tipoReserva === 'avulsa' ? (
+                    <input
+                      type="date"
+                      value={formReserva.data}
+                      onChange={(e) => setFormReserva({...formReserva, data: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      placeholder="Data da reserva"
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Mês de Referência</label>
+                      <input
+                        type="month"
+                        value={formReserva.mesReferencia}
+                        onChange={(e) => setFormReserva({...formReserva, mesReferencia: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        placeholder="Selecione o mês"
+                      />
+                    </div>
+                  )}
+                  {/* Seleção de Dias da Semana - apenas para reserva mensal */}
+                  {formReserva.tipoReserva === 'mensal' && (
+                    <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                      <label className="block text-sm font-medium text-green-800 mb-3">Dias da Semana</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { key: 'segunda', label: 'Segunda-feira' },
+                          { key: 'terca', label: 'Terça-feira' },
+                          { key: 'quarta', label: 'Quarta-feira' },
+                          { key: 'quinta', label: 'Quinta-feira' },
+                          { key: 'sexta', label: 'Sexta-feira' },
+                          { key: 'sabado', label: 'Sábado' },
+                          { key: 'domingo', label: 'Domingo' }
+                        ].map(dia => (
+                          <label key={dia.key} className="flex items-center space-x-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formReserva.diasSemana.includes(dia.key)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormReserva({
+                                    ...formReserva, 
+                                    diasSemana: [...formReserva.diasSemana, dia.key]
+                                  });
+                                } else {
+                                  setFormReserva({
+                                    ...formReserva, 
+                                    diasSemana: formReserva.diasSemana.filter(d => d !== dia.key)
+                                  });
+                                }
+                              }}
+                              className="w-4 h-4 text-green-600"
+                            />
+                            <span className="text-green-700">{dia.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="time"
@@ -3874,8 +4261,110 @@ const QuadraManagementSystem = () => {
                     />
                   </div>
                   
+                  {/* Cálculo e Exibição de Valores */}
+                  {formReserva.tipoReserva === 'mensal' && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && (
+                    <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                      <h4 className="text-sm font-medium text-purple-800 mb-3">💰 Cálculo da Reserva Mensal</h4>
+                      {(() => {
+                        const valorMensal = calcularValorMensal();
+                        const quadraSelecionada = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+                        const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
+                        const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
+                        const minutos = (horaFim - horaInicio) / (1000 * 60);
+                        const horas = minutos / 60;
+                        const valorSessao = horas * (quadraSelecionada?.valorHora || 0);
+                        const sessoesPorMes = Math.round(formReserva.diasSemana.length * 4.33);
+                        const valorSemDesconto = valorSessao * sessoesPorMes;
+                        const desconto = valorSemDesconto * 0.1;
+                        
+                        return (
+                          <div className="text-sm text-purple-700 space-y-2">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <strong>Valor por sessão:</strong><br/>
+                                R$ {valorSessao.toFixed(2)} ({horas.toFixed(1)}h × R$ {quadraSelecionada?.valorHora})
+                              </div>
+                              <div>
+                                <strong>Sessões/mês:</strong><br/>
+                                {sessoesPorMes} ({formReserva.diasSemana.length} dias × 4.33 semanas)
+                              </div>
+                            </div>
+                            <div className="border-t border-purple-300 pt-2">
+                              <div className="flex justify-between">
+                                <span>Valor sem desconto:</span>
+                                <span>R$ {valorSemDesconto.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-green-600">
+                                <span>Desconto mensal (10%):</span>
+                                <span>- R$ {desconto.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between font-bold text-lg border-t border-purple-300 pt-1">
+                                <span>Valor total mensal:</span>
+                                <span>R$ {valorMensal.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Opções de Parcelamento - apenas para reserva mensal */}
+                  {formReserva.tipoReserva === 'mensal' && (
+                    <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
+                      <label className="block text-sm font-medium text-orange-800 mb-3">💳 Opções de Pagamento</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-orange-700 mb-1">Número de Parcelas</label>
+                          <select
+                            value={formReserva.numeroParcelas}
+                            onChange={(e) => setFormReserva({...formReserva, numeroParcelas: parseInt(e.target.value)})}
+                            className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+                          >
+                            <option value={1}>À vista (1x)</option>
+                            <option value={2}>2x sem juros</option>
+                            <option value={3}>3x sem juros</option>
+                            <option value={4}>4x sem juros</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-orange-700 mb-1">Valor da Parcela</label>
+                          <div className="px-3 py-2 bg-orange-100 border border-orange-300 rounded-md text-sm font-medium text-orange-800">
+                            {formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 ? 
+                              `R$ ${calcularParcelas(calcularValorMensal(), formReserva.numeroParcelas).toFixed(2)}` : 
+                              'R$ 0,00'
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {formReserva.numeroParcelas > 1 && (
+                        <div className="mt-3">
+                          <label className="block text-xs text-orange-700 mb-1">Vencimento da 1ª Parcela</label>
+                          <input
+                            type="date"
+                            value={formReserva.dataVencimentoPrimeiraParcela}
+                            onChange={(e) => setFormReserva({...formReserva, dataVencimentoPrimeiraParcela: e.target.value})}
+                            className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Valor para reserva avulsa */}
+                  {formReserva.tipoReserva === 'avulsa' && (
+                    <input
+                      type="number"
+                      placeholder="Valor (opcional)"
+                      value={formReserva.valor}
+                      onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  )}
+
                   {/* Aviso sobre disponibilidade */}
-                  {formReserva.data && formReserva.quadraId && (
+                  {formReserva.tipoReserva === 'avulsa' && formReserva.data && formReserva.quadraId && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                       <div className="text-sm text-blue-700">
                         <strong>Disponibilidade:</strong>
@@ -3924,45 +4413,41 @@ const QuadraManagementSystem = () => {
                       </div>
                     </div>
                   )}
-                  <input
-                    type="number"
-                    placeholder="Valor (opcional)"
-                    value={formReserva.valor}
-                    onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={formReserva.status}
-                      onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    >
-                      <option value="Confirmada">Confirmada</option>
-                      <option value="Pendente">Pendente</option>
-                      <option value="Cancelada">Cancelada</option>
-                    </select>
-                    <select
-                      value={formReserva.statusPagamento}
-                      onChange={(e) => {
-                        const novoStatus = e.target.value;
-                        setFormReserva({
-                          ...formReserva, 
-                          statusPagamento: novoStatus,
-                          // Auto-ajustar valorPago baseado no status
-                          valorPago: novoStatus === 'Pago' && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
-                          dataPagamento: novoStatus !== 'Pendente' && !formReserva.dataPagamento ? new Date().toISOString().split('T')[0] : formReserva.dataPagamento
-                        });
-                      }}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    >
-                      <option value="Pendente">Pendente</option>
-                      <option value="Parcial">Parcial</option>
-                      <option value="Pago">Pago</option>
-                    </select>
-                  </div>
+                  {/* Status - apenas para reserva avulsa */}
+                  {formReserva.tipoReserva === 'avulsa' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={formReserva.status}
+                        onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        <option value="Confirmada">Confirmada</option>
+                        <option value="Pendente">Pendente</option>
+                        <option value="Cancelada">Cancelada</option>
+                      </select>
+                      <select
+                        value={formReserva.statusPagamento}
+                        onChange={(e) => {
+                          const novoStatus = e.target.value;
+                          setFormReserva({
+                            ...formReserva, 
+                            statusPagamento: novoStatus,
+                            // Auto-ajustar valorPago baseado no status
+                            valorPago: novoStatus === 'Pago' && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
+                            dataPagamento: novoStatus !== 'Pendente' && !formReserva.dataPagamento ? new Date().toISOString().split('T')[0] : formReserva.dataPagamento
+                          });
+                        }}
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                      >
+                        <option value="Pendente">Pendente</option>
+                        <option value="Parcial">Parcial</option>
+                        <option value="Pago">Pago</option>
+                      </select>
+                    </div>
+                  )}
                   
-                  {/* Campos de Pagamento - Mostrar apenas se não for Pendente */}
-                  {formReserva.statusPagamento !== 'Pendente' && (
+                  {/* Campos de Pagamento - Mostrar apenas para reserva avulsa e se não for Pendente */}
+                  {formReserva.tipoReserva === 'avulsa' && formReserva.statusPagamento !== 'Pendente' && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
                       <h4 className="text-sm font-medium text-green-800">Informações de Pagamento</h4>
                       
@@ -4022,10 +4507,55 @@ const QuadraManagementSystem = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Entrada inicial para reserva mensal */}
+                  {formReserva.tipoReserva === 'mensal' && (
+                    <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                      <h4 className="text-sm font-medium text-green-800 mb-3">💰 Pagamento Inicial (Opcional)</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Valor pago na reserva"
+                            value={formReserva.valorPago}
+                            onChange={(e) => setFormReserva({...formReserva, valorPago: e.target.value})}
+                            className="w-full px-3 py-2 border border-green-300 rounded-md text-sm"
+                          />
+                        </div>
+                        <div>
+                          <select
+                            value={formReserva.formaPagamento}
+                            onChange={(e) => setFormReserva({...formReserva, formaPagamento: e.target.value})}
+                            className="w-full px-3 py-2 border border-green-300 rounded-md text-sm"
+                          >
+                            <option value="">Forma de pagamento</option>
+                            <option value="Pix">Pix</option>
+                            <option value="Dinheiro">Dinheiro</option>
+                            <option value="Transferência">Transferência</option>
+                            <option value="Cartão">Cartão</option>
+                          </select>
+                        </div>
+                      </div>
+                      {formReserva.valorPago && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && (
+                        <div className="mt-2 text-xs text-green-700">
+                          <strong>Saldo restante:</strong> R$ {(calcularValorMensal() - parseFloat(formReserva.valorPago || 0)).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Observações */}
                   <textarea
-                    placeholder="Observações (opcional)"
-                    value={formReserva.observacoes}
-                    onChange={(e) => setFormReserva({...formReserva, observacoes: e.target.value})}
+                    placeholder={formReserva.tipoReserva === 'mensal' ? "Observações sobre a reserva mensal (opcional)" : "Observações (opcional)"}
+                    value={formReserva.tipoReserva === 'mensal' ? formReserva.observacoesMensal : formReserva.observacoes}
+                    onChange={(e) => {
+                      if (formReserva.tipoReserva === 'mensal') {
+                        setFormReserva({...formReserva, observacoesMensal: e.target.value});
+                      } else {
+                        setFormReserva({...formReserva, observacoes: e.target.value});
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                     rows="3"
                   />
