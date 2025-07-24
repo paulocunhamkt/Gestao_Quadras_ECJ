@@ -202,35 +202,74 @@ const QuadraManagementSystem = () => {
   };
 
   const adicionarRecebimento = () => {
+    const tipoId = formRecebimento.faturamentoId;
+    const [tipo, idStr] = tipoId.split('_');
+    const id = parseInt(idStr);
+    const valorRecebimento = parseFloat(formRecebimento.valor);
+    
     const novoRecebimento = {
       id: Date.now(),
       ...formRecebimento,
-      faturamentoId: parseInt(formRecebimento.faturamentoId),
-      valor: parseFloat(formRecebimento.valor),
+      faturamentoId: tipo === 'fat' ? id : null,
+      reservaId: tipo === 'res' ? id : null,
+      tipoItem: tipo === 'fat' ? 'faturamento' : 'reserva',
+      valor: valorRecebimento,
       usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
       dataLancamento: new Date().toISOString()
     };
     
     setRecebimentos([...recebimentos, novoRecebimento]);
     
-    // Atualizar faturamento
-    setFaturamentos(faturamentos.map(f => {
-      if (f.id === parseInt(formRecebimento.faturamentoId)) {
-        const novoValorRecebido = f.valorRealRecebido + parseFloat(formRecebimento.valor);
-        const novoValorEmAberto = f.valor - novoValorRecebido;
-        return {
-          ...f,
-          valorRealRecebido: novoValorRecebido,
-          valorEmAberto: Math.max(0, novoValorEmAberto),
-          status: novoValorEmAberto <= 0 ? 'Pago' : 'Em Aberto',
-          ultimoRecebimento: {
-            usuario: usuarioLogado?.nome || 'Sistema',
-            data: new Date().toISOString()
+    if (tipo === 'fat') {
+      // Atualizar faturamento
+      setFaturamentos(faturamentos.map(f => {
+        if (f.id === id) {
+          const novoValorRecebido = f.valorRealRecebido + valorRecebimento;
+          const novoValorEmAberto = f.valor - novoValorRecebido;
+          return {
+            ...f,
+            valorRealRecebido: novoValorRecebido,
+            valorEmAberto: Math.max(0, novoValorEmAberto),
+            status: novoValorEmAberto <= 0 ? 'Pago' : 'Em Aberto',
+            ultimoRecebimento: {
+              usuario: usuarioLogado?.nome || 'Sistema',
+              data: new Date().toISOString()
+            }
+          };
+        }
+        return f;
+      }));
+    } else {
+      // Atualizar reserva
+      setReservas(reservas.map(r => {
+        if (r.id === id) {
+          const valorAtual = r.valorPago || 0;
+          const novoValorPago = valorAtual + valorRecebimento;
+          const valorTotal = r.valor || 0;
+          let novoStatusPagamento = 'Pendente';
+          
+          if (novoValorPago >= valorTotal) {
+            novoStatusPagamento = 'Pago';
+          } else if (novoValorPago > 0) {
+            novoStatusPagamento = 'Parcial';
           }
-        };
-      }
-      return f;
-    }));
+          
+          return {
+            ...r,
+            valorPago: novoValorPago,
+            statusPagamento: novoStatusPagamento,
+            formaPagamento: formRecebimento.formaPagamento,
+            dataPagamento: formRecebimento.data,
+            ultimoRecebimento: {
+              usuario: usuarioLogado?.nome || 'Sistema',
+              data: new Date().toISOString(),
+              valor: valorRecebimento
+            }
+          };
+        }
+        return r;
+      }));
+    }
     
     fecharModal();
   };
@@ -240,20 +279,45 @@ const QuadraManagementSystem = () => {
     if (recebimento && confirm('Tem certeza que deseja excluir este recebimento?')) {
       setRecebimentos(recebimentos.filter(r => r.id !== id));
       
-      // Atualizar faturamento
-      setFaturamentos(faturamentos.map(f => {
-        if (f.id === recebimento.faturamentoId) {
-          const novoValorRecebido = f.valorRealRecebido - recebimento.valor;
-          const novoValorEmAberto = f.valor - novoValorRecebido;
-          return {
-            ...f,
-            valorRealRecebido: Math.max(0, novoValorRecebido),
-            valorEmAberto: novoValorEmAberto,
-            status: novoValorEmAberto > 0 ? 'Em Aberto' : 'Pago'
-          };
-        }
-        return f;
-      }));
+      if (recebimento.tipoItem === 'faturamento' && recebimento.faturamentoId) {
+        // Atualizar faturamento
+        setFaturamentos(faturamentos.map(f => {
+          if (f.id === recebimento.faturamentoId) {
+            const novoValorRecebido = f.valorRealRecebido - recebimento.valor;
+            const novoValorEmAberto = f.valor - novoValorRecebido;
+            return {
+              ...f,
+              valorRealRecebido: Math.max(0, novoValorRecebido),
+              valorEmAberto: novoValorEmAberto,
+              status: novoValorEmAberto > 0 ? 'Em Aberto' : 'Pago'
+            };
+          }
+          return f;
+        }));
+      } else if (recebimento.tipoItem === 'reserva' && recebimento.reservaId) {
+        // Atualizar reserva
+        setReservas(reservas.map(r => {
+          if (r.id === recebimento.reservaId) {
+            const valorAtual = r.valorPago || 0;
+            const novoValorPago = Math.max(0, valorAtual - recebimento.valor);
+            const valorTotal = r.valor || 0;
+            let novoStatusPagamento = 'Pendente';
+            
+            if (novoValorPago >= valorTotal) {
+              novoStatusPagamento = 'Pago';
+            } else if (novoValorPago > 0) {
+              novoStatusPagamento = 'Parcial';
+            }
+            
+            return {
+              ...r,
+              valorPago: novoValorPago,
+              statusPagamento: novoStatusPagamento
+            };
+          }
+          return r;
+        }));
+      }
     }
   };
 
@@ -1508,17 +1572,7 @@ const QuadraManagementSystem = () => {
                           {reserva.dataPagamento && ` • Data: ${new Date(reserva.dataPagamento).toLocaleDateString('pt-BR')}`}
                         </div>
                       )}
-                      {reserva.usuarioResponsavel && (
-                        <div className="text-xs text-gray-500 mb-2 flex items-center">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Lançado por: {reserva.usuarioResponsavel}
-                          {reserva.dataLancamento && (
-                            <span className="ml-2">
-                              • {new Date(reserva.dataLancamento).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                        </div>
-                      )}
+
                       <div className="flex space-x-2">
                         <button
                           onClick={() => editarReserva(reserva)}
@@ -1555,7 +1609,6 @@ const QuadraManagementSystem = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pagamento</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsável</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                       </tr>
                     </thead>
@@ -1596,16 +1649,6 @@ const QuadraManagementSystem = () => {
                                   <span className="text-gray-500"> • {reserva.formaPagamento}</span>
                                 )}
                               </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {reserva.usuarioResponsavel || 'N/A'}
-                              </div>
-                              {reserva.dataLancamento && (
-                                <div className="text-xs text-gray-500">
-                                  {new Date(reserva.dataLancamento).toLocaleDateString('pt-BR')}
-                                </div>
-                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <button
@@ -1773,7 +1816,7 @@ const QuadraManagementSystem = () => {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h2 className="text-lg md:text-xl font-semibold text-gray-900">Controle Financeiro</h2>
-                  <p className="text-sm text-gray-600">Gestão de faturamentos e recebimentos</p>
+                  <p className="text-sm text-gray-600">Gestão de pendências financeiras - Apenas lançamentos em aberto e parciais</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <button
@@ -1841,8 +1884,10 @@ const QuadraManagementSystem = () => {
                       <p className="text-sm md:text-xl font-bold text-red-600">
                         R$ {(() => {
                           const reservasEmAberto = reservas.reduce((acc, r) => {
-                            const valorPendente = (r.valor || 0) - (r.valorPago || 0);
-                            return acc + Math.max(0, valorPendente);
+                            const valorTotal = r.valor || 0;
+                            const valorPago = r.valorPago || 0;
+                            const valorPendente = Math.max(0, valorTotal - valorPago);
+                            return acc + valorPendente;
                           }, 0);
                           const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
                           return (reservasEmAberto + faturamentosEmAberto).toFixed(2);
@@ -1875,602 +1920,6 @@ const QuadraManagementSystem = () => {
                 </div>
               </div>
 
-              {/* Gráficos Financeiros */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                {/* Gráfico de Pizza - Status dos Faturamentos */}
-                <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base md:text-lg font-medium text-gray-900">Status dos Faturamentos</h3>
-                    <PieChart className="h-5 w-5 text-blue-500" />
-                  </div>
-                  
-                  {(() => {
-                    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
-                    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-                    const totalFaturado = receitaReservas + receitaFaturamentos;
-                    
-                    const reservasRecebidas = reservas.filter(r => r.status === 'Confirmada').reduce((acc, r) => acc + (r.valor || 0), 0);
-                    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-                    const totalRecebido = reservasRecebidas + faturamentosRecebidos;
-                    
-                    const reservasEmAberto = reservas.reduce((acc, r) => {
-                      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
-                      return acc + Math.max(0, valorPendente);
-                    }, 0);
-                    const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
-                    const totalEmAberto = reservasEmAberto + faturamentosEmAberto;
-                    
-                    const percentualRecebido = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
-                    const percentualEmAberto = totalFaturado > 0 ? (totalEmAberto / totalFaturado) * 100 : 0;
-                    
-                    return (
-                      <div className="space-y-4">
-                        {/* Gráfico Circular Manual */}
-                        <div className="flex justify-center mb-4">
-                          <div className="relative w-32 h-32">
-                            <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
-                              {/* Círculo de fundo */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#f3f4f6"
-                                strokeWidth="3"
-                              />
-                              {/* Valores Recebidos */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#10b981"
-                                strokeWidth="3"
-                                strokeDasharray={`${percentualRecebido}, 100`}
-                              />
-                              {/* Valores em Aberto */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#ef4444"
-                                strokeWidth="3"
-                                strokeDasharray={`${percentualEmAberto}, 100`}
-                                strokeDashoffset={-percentualRecebido}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-center">
-                                <div className="text-sm font-bold text-gray-900">
-                                  {Math.round(percentualRecebido)}%
-                                </div>
-                                <div className="text-xs text-gray-600">Recebido</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Legenda */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                              <span className="text-sm text-gray-700">Recebido</span>
-                            </div>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {totalRecebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                              <span className="text-sm text-gray-700">Em Aberto</span>
-                            </div>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {totalEmAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="border-t pt-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">Total Faturado</span>
-                              <span className="text-sm font-bold text-blue-600">
-                                R$ {totalFaturado.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Gráfico de Barras - Faturamento por Mês */}
-                <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base md:text-lg font-medium text-gray-900">Faturamento por Mês</h3>
-                    <BarChart3 className="h-5 w-5 text-blue-500" />
-                  </div>
-                  
-                  {(() => {
-                    // Agrupar receitas por mês (reservas + faturamentos)
-                    const faturamentosPorMes = {};
-                    const recebimentosPorMes = {};
-                    
-                    // Adicionar receitas das reservas
-                    reservas.forEach(r => {
-                      if (r.data) {
-                        const mes = r.data.substring(0, 7); // YYYY-MM
-                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (r.valor || 0);
-                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (r.valorPago || 0);
-                      }
-                    });
-                    
-                    // Adicionar faturamentos administrativos
-                    faturamentos.forEach(f => {
-                      if (f.data) {
-                        const mes = f.data.substring(0, 7); // YYYY-MM
-                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
-                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
-                      }
-                    });
-                    
-                    // Pegar últimos 6 meses
-                    const hoje = new Date();
-                    const meses = [];
-                    for (let i = 5; i >= 0; i--) {
-                      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-                      const mesAno = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}`;
-                      const nomemes = data.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase();
-                      meses.push({
-                        id: mesAno,
-                        nome: nomemes,
-                        faturado: faturamentosPorMes[mesAno] || 0,
-                        recebido: recebimentosPorMes[mesAno] || 0
-                      });
-                    }
-                    
-                    const maxValor = Math.max(...meses.map(m => Math.max(m.faturado, m.recebido)));
-                    
-                    return (
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          {meses.map((mes, index) => (
-                            <div key={mes.id} className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span className="font-medium text-gray-700">{mes.nome}</span>
-                                <span className="text-gray-600">
-                                  R$ {mes.faturado.toFixed(0)} / R$ {mes.recebido.toFixed(0)}
-                                </span>
-                              </div>
-                              <div className="relative">
-                                {/* Barra de Faturamento */}
-                                <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                                  <div
-                                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                                    style={{ width: `${maxValor > 0 ? (mes.faturado / maxValor) * 100 : 0}%` }}
-                                  ></div>
-                                  {/* Barra de Recebimento sobreposta */}
-                                  <div
-                                    className="bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300"
-                                    style={{ width: `${maxValor > 0 ? (mes.recebido / maxValor) * 100 : 0}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Legenda */}
-                        <div className="flex justify-center space-x-4 pt-4 border-t">
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
-                            <span className="text-xs text-gray-600">Faturado</span>
-                          </div>
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
-                            <span className="text-xs text-gray-600">Recebido</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Resumo Detalhado por Tipo */}
-              <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                <h3 className="text-base md:text-lg font-medium text-gray-900 mb-4">Análise por Tipo de Locação</h3>
-                
-                {(() => {
-                  const analise = {
-                    mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
-                    avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
-                  };
-                  
-                  // Analisar reservas (considerando como avulsas se não especificado)
-                  reservas.forEach(r => {
-                    const tipo = 'avulso'; // Reservas são geralmente avulsas
-                    analise[tipo].faturado += r.valor || 0;
-                    analise[tipo].recebido += r.valorPago || 0;
-                    const valorEmAberto = (r.valor || 0) - (r.valorPago || 0);
-                    analise[tipo].emAberto += Math.max(0, valorEmAberto);
-                    analise[tipo].count += 1;
-                  });
-                  
-                  // Analisar faturamentos administrativos
-                  faturamentos.forEach(f => {
-                    const tipo = f.tipoLocacao?.toLowerCase() === 'mensal' ? 'mensal' : 'avulso';
-                    analise[tipo].faturado += f.valor || 0;
-                    analise[tipo].recebido += f.valorRealRecebido || 0;
-                    analise[tipo].emAberto += f.valorEmAberto || 0;
-                    analise[tipo].count += 1;
-                  });
-                  
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                      {/* Locações Mensais */}
-                      <div className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <Calendar className="h-4 w-4 text-blue-500 mr-2" />
-                          Locações Mensais
-                        </h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Contratos:</span>
-                            <span className="text-sm font-medium">{analise.mensal.count}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Faturado:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              R$ {analise.mensal.faturado.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Recebido:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {analise.mensal.recebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Em Aberto:</span>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {analise.mensal.emAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="pt-2 border-t">
-                            <div className="flex justify-between">
-                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
-                              <span className="text-sm font-bold text-purple-600">
-                                {analise.mensal.faturado > 0 ? 
-                                  Math.round((analise.mensal.recebido / analise.mensal.faturado) * 100) : 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Locações Avulsas */}
-                      <div className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <Clock className="h-4 w-4 text-orange-500 mr-2" />
-                          Locações Avulsas
-                        </h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Locações:</span>
-                            <span className="text-sm font-medium">{analise.avulso.count}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Faturado:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              R$ {analise.avulso.faturado.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Recebido:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {analise.avulso.recebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Em Aberto:</span>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {analise.avulso.emAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="pt-2 border-t">
-                            <div className="flex justify-between">
-                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
-                              <span className="text-sm font-bold text-purple-600">
-                                {analise.avulso.faturado > 0 ? 
-                                  Math.round((analise.avulso.recebido / analise.avulso.faturado) * 100) : 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Gráficos Financeiros */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                {/* Gráfico de Pizza - Status dos Faturamentos */}
-                <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base md:text-lg font-medium text-gray-900">Status dos Faturamentos</h3>
-                    <PieChart className="h-5 w-5 text-blue-500" />
-                  </div>
-                  
-                  {(() => {
-                    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-                    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-                    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
-                    
-                    const percentualRecebido = totalFaturado > 0 ? (totalRecebido / totalFaturado) * 100 : 0;
-                    const percentualEmAberto = totalFaturado > 0 ? (totalEmAberto / totalFaturado) * 100 : 0;
-                    
-                    return (
-                      <div className="space-y-4">
-                        {/* Gráfico Circular Manual */}
-                        <div className="flex justify-center mb-4">
-                          <div className="relative w-32 h-32">
-                            <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
-                              {/* Círculo de fundo */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#f3f4f6"
-                                strokeWidth="3"
-                              />
-                              {/* Valores Recebidos */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#10b981"
-                                strokeWidth="3"
-                                strokeDasharray={`${percentualRecebido}, 100`}
-                              />
-                              {/* Valores em Aberto */}
-                              <path
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#ef4444"
-                                strokeWidth="3"
-                                strokeDasharray={`${percentualEmAberto}, 100`}
-                                strokeDashoffset={-percentualRecebido}
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-center">
-                                <div className="text-sm font-bold text-gray-900">
-                                  {Math.round(percentualRecebido)}%
-                                </div>
-                                <div className="text-xs text-gray-600">Recebido</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Legenda */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                              <span className="text-sm text-gray-700">Recebido</span>
-                            </div>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {totalRecebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                              <span className="text-sm text-gray-700">Em Aberto</span>
-                            </div>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {totalEmAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="border-t pt-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-900">Total Faturado</span>
-                              <span className="text-sm font-bold text-blue-600">
-                                R$ {totalFaturado.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Gráfico de Barras - Faturamento por Mês */}
-                <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-base md:text-lg font-medium text-gray-900">Faturamento por Mês</h3>
-                    <BarChart3 className="h-5 w-5 text-blue-500" />
-                  </div>
-                  
-                  {(() => {
-                    // Agrupar faturamentos por mês
-                    const faturamentosPorMes = {};
-                    const recebimentosPorMes = {};
-                    
-                    faturamentos.forEach(f => {
-                      if (f.data) {
-                        const mes = f.data.substring(0, 7); // YYYY-MM
-                        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
-                        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
-                      }
-                    });
-                    
-                    // Pegar últimos 6 meses
-                    const hoje = new Date();
-                    const meses = [];
-                    for (let i = 5; i >= 0; i--) {
-                      const data = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
-                      const mesAno = `${data.getFullYear()}-${(data.getMonth() + 1).toString().padStart(2, '0')}`;
-                      const nomemes = data.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase();
-                      meses.push({
-                        id: mesAno,
-                        nome: nomemes,
-                        faturado: faturamentosPorMes[mesAno] || 0,
-                        recebido: recebimentosPorMes[mesAno] || 0
-                      });
-                    }
-                    
-                    const maxValor = Math.max(...meses.map(m => Math.max(m.faturado, m.recebido)));
-                    
-                    return (
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          {meses.map((mes, index) => (
-                            <div key={mes.id} className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span className="font-medium text-gray-700">{mes.nome}</span>
-                                <span className="text-gray-600">
-                                  R$ {mes.faturado.toFixed(0)} / R$ {mes.recebido.toFixed(0)}
-                                </span>
-                              </div>
-                              <div className="relative">
-                                {/* Barra de Faturamento */}
-                                <div className="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
-                                  <div
-                                    className="bg-blue-500 h-full rounded-full transition-all duration-300"
-                                    style={{ width: `${maxValor > 0 ? (mes.faturado / maxValor) * 100 : 0}%` }}
-                                  ></div>
-                                  {/* Barra de Recebimento sobreposta */}
-                                  <div
-                                    className="bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300"
-                                    style={{ width: `${maxValor > 0 ? (mes.recebido / maxValor) * 100 : 0}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {/* Legenda */}
-                        <div className="flex justify-center space-x-4 pt-4 border-t">
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-blue-500 rounded mr-2"></div>
-                            <span className="text-xs text-gray-600">Faturado</span>
-                          </div>
-                          <div className="flex items-center">
-                            <div className="w-3 h-3 bg-green-500 rounded mr-2"></div>
-                            <span className="text-xs text-gray-600">Recebido</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Resumo Detalhado por Tipo */}
-              <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                <h3 className="text-base md:text-lg font-medium text-gray-900 mb-4">Análise por Tipo de Locação</h3>
-                
-                {(() => {
-                  const analise = {
-                    mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
-                    avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
-                  };
-                  
-                  faturamentos.forEach(f => {
-                    const tipo = f.tipoLocacao?.toLowerCase() === 'mensal' ? 'mensal' : 'avulso';
-                    analise[tipo].faturado += f.valor || 0;
-                    analise[tipo].recebido += f.valorRealRecebido || 0;
-                    analise[tipo].emAberto += f.valorEmAberto || 0;
-                    analise[tipo].count += 1;
-                  });
-                  
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                      {/* Locações Mensais */}
-                      <div className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <Calendar className="h-4 w-4 text-blue-500 mr-2" />
-                          Locações Mensais
-                        </h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Contratos:</span>
-                            <span className="text-sm font-medium">{analise.mensal.count}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Faturado:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              R$ {analise.mensal.faturado.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Recebido:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {analise.mensal.recebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Em Aberto:</span>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {analise.mensal.emAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="pt-2 border-t">
-                            <div className="flex justify-between">
-                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
-                              <span className="text-sm font-bold text-purple-600">
-                                {analise.mensal.faturado > 0 ? 
-                                  Math.round((analise.mensal.recebido / analise.mensal.faturado) * 100) : 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Locações Avulsas */}
-                      <div className="border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                          <Clock className="h-4 w-4 text-orange-500 mr-2" />
-                          Locações Avulsas
-                        </h4>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Locações:</span>
-                            <span className="text-sm font-medium">{analise.avulso.count}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Faturado:</span>
-                            <span className="text-sm font-medium text-blue-600">
-                              R$ {analise.avulso.faturado.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Recebido:</span>
-                            <span className="text-sm font-medium text-green-600">
-                              R$ {analise.avulso.recebido.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Em Aberto:</span>
-                            <span className="text-sm font-medium text-red-600">
-                              R$ {analise.avulso.emAberto.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="pt-2 border-t">
-                            <div className="flex justify-between">
-                              <span className="text-sm font-medium text-gray-900">Taxa de Recebimento:</span>
-                              <span className="text-sm font-bold text-purple-600">
-                                {analise.avulso.faturado > 0 ? 
-                                  Math.round((analise.avulso.recebido / analise.avulso.faturado) * 100) : 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
               {/* Filtros */}
               <div className="bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4">
                 <div className="flex-1">
@@ -2488,167 +1937,387 @@ const QuadraManagementSystem = () => {
                     onChange={(e) => setFiltroData(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
-                    <option value="">Todos os status</option>
-                    <option value="Pago">Pago</option>
+                    <option value="">Todos os pendentes</option>
                     <option value="Em Aberto">Em Aberto</option>
+                    <option value="Parcial">Parciais</option>
                   </select>
                 </div>
               </div>
 
-              {/* Lista de Faturamentos Mobile */}
+              {/* Lista Unificada - Mobile */}
               <div className="space-y-3 md:hidden">
-                {faturamentos
-                  .filter(faturamento => {
+                {(() => {
+                  // Criar lista unificada de itens financeiros APENAS COM VALORES EM ABERTO
+                  const itensFinanceiros = [];
+                  
+                  // Adicionar APENAS faturamentos com valores em aberto
+                  faturamentos.forEach(faturamento => {
+                    const valorEmAberto = faturamento.valorEmAberto || 0;
+                    if (valorEmAberto > 0) {
+                      itensFinanceiros.push({
+                        id: `fat_${faturamento.id}`,
+                        tipo: 'faturamento',
+                        origem: 'Faturamento Administrativo',
+                        cliente: faturamento.cliente,
+                        descricao: `${faturamento.tipoQuadra} - ${faturamento.mesLocacao}`,
+                        data: faturamento.data,
+                        valor: faturamento.valor,
+                        valorRecebido: faturamento.valorRealRecebido || 0,
+                        valorEmAberto: valorEmAberto,
+                        formaPagamento: faturamento.formaPagamento,
+                        status: 'Em Aberto',
+                        item: faturamento
+                      });
+                    }
+                  });
+                  
+                  // Adicionar APENAS reservas com valores em aberto ou parciais
+                  reservas.forEach(reserva => {
+                    const valorTotal = reserva.valor || 0;
+                    const valorPago = reserva.valorPago || 0;
+                    const valorEmAberto = Math.max(0, valorTotal - valorPago);
+                    
+                    if (valorEmAberto > 0) {
+                      const cliente = clientes.find(c => c.id === reserva.clienteId);
+                      const quadra = quadras.find(q => q.id === reserva.quadraId);
+                      
+                      let status = 'Em Aberto';
+                      if (valorPago > 0) {
+                        status = 'Parcial';
+                      }
+                      
+                      itensFinanceiros.push({
+                        id: `res_${reserva.id}`,
+                        tipo: 'reserva',
+                        origem: 'Reserva de Quadra',
+                        cliente: cliente?.nome || 'Cliente N/A',
+                        descricao: `${quadra?.nome} - ${reserva.data} (${reserva.horaInicio}-${reserva.horaFim})`,
+                        data: reserva.data,
+                        valor: valorTotal,
+                        valorRecebido: valorPago,
+                        valorEmAberto: valorEmAberto,
+                        formaPagamento: reserva.formaPagamento || '',
+                        status: status,
+                        item: reserva
+                      });
+                    }
+                  });
+                  
+                  // Filtrar itens (apenas os que têm valor em aberto)
+                  const itensFiltrados = itensFinanceiros.filter(item => {
                     const matchSearch = !searchTerm || 
-                      faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchStatus = !filtroData || faturamento.status === filtroData;
+                      item.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchStatus = !filtroData || item.status === filtroData;
                     return matchSearch && matchStatus;
-                  })
-                  .map((faturamento) => (
-                    <div key={faturamento.id} className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+                  });
+                  
+                  return itensFiltrados.map((item) => (
+                    <div key={item.id} className={`bg-white rounded-lg shadow p-4 border-l-4 ${
+                      item.tipo === 'faturamento' ? 'border-blue-500' : 'border-green-500'
+                    }`}>
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">{faturamento.cliente}</h3>
-                          <p className="text-sm text-gray-600">{faturamento.tipoQuadra} - {faturamento.mesLocacao}</p>
-                          <p className="text-sm text-blue-600">R$ {faturamento.valor?.toFixed(2)}</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium text-gray-900">{item.cliente}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                              item.tipo === 'faturamento' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {item.origem}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">{item.descricao}</p>
+                          <p className="text-sm text-blue-600 font-medium">R$ {item.valor?.toFixed(2)}</p>
                         </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          faturamento.status === 'Pago' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {faturamento.status}
-                        </span>
+                        <div className="text-right">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            item.status === 'Pago' ? 'bg-green-100 text-green-800' :
+                            item.status === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {item.status}
+                          </span>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                        <div>Recebido: R$ {faturamento.valorRealRecebido?.toFixed(2)}</div>
-                        <div>Em Aberto: R$ {faturamento.valorEmAberto?.toFixed(2)}</div>
-                        <div>Data: {faturamento.data}</div>
-                        <div>Forma: {faturamento.formaPagamento}</div>
+                        <div>Recebido: R$ {item.valorRecebido?.toFixed(2)}</div>
+                        <div>Em Aberto: R$ {item.valorEmAberto?.toFixed(2)}</div>
+                        <div>Data: {new Date(item.data).toLocaleDateString('pt-BR')}</div>
+                        <div>Forma: {item.formaPagamento || 'N/A'}</div>
                       </div>
-                      {faturamento.usuarioResponsavel && (
-                        <div className="text-xs text-gray-500 mb-2 flex items-center">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Lançado por: {faturamento.usuarioResponsavel}
-                          {faturamento.dataLancamento && (
-                            <span className="ml-2">
-                              • {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
+
+                      <div className="space-y-2">
+                        {item.valorEmAberto > 0 && (
+                          <button
+                            onClick={() => {
+                              setFormRecebimento({
+                                faturamentoId: item.id,
+                                data: new Date().toISOString().split('T')[0],
+                                valor: item.valorEmAberto.toString(),
+                                formaPagamento: '',
+                                observacoes: ''
+                              });
+                              setModalType('recebimento');
+                              setShowModal(true);
+                            }}
+                            className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 flex items-center justify-center space-x-2"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                            <span>Lançar Recebimento</span>
+                          </button>
+                        )}
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => {
+                              if (item.tipo === 'faturamento') {
+                                editarFaturamento(item.item);
+                              } else {
+                                editarReserva(item.item);
+                              }
+                            }}
+                            className={`flex-1 text-white px-3 py-2 rounded text-sm ${
+                              item.tipo === 'faturamento' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'
+                            }`}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (item.tipo === 'faturamento') {
+                                excluirFaturamento(item.item.id);
+                              } else {
+                                excluirReserva(item.item.id);
+                              }
+                            }}
+                            className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                      )}
-                      {faturamento.usuarioResponsavel && (
-                        <div className="text-xs text-gray-500 mb-2 flex items-center">
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Lançado por: {faturamento.usuarioResponsavel}
-                          {faturamento.dataLancamento && (
-                            <span className="ml-2">
-                              • {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => editarFaturamento(faturamento)}
-                          className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => excluirFaturamento(faturamento.id)}
-                          className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       </div>
                     </div>
-                  ))}
+                  ));
+                })()}
+                
+                {(() => {
+                  // Verificar se há itens em aberto para mostrar mensagem quando não há
+                  const faturamentosEmAberto = faturamentos.filter(f => (f.valorEmAberto || 0) > 0);
+                  const reservasEmAberto = reservas.filter(r => {
+                    const valorTotal = r.valor || 0;
+                    const valorPago = r.valorPago || 0;
+                    return Math.max(0, valorTotal - valorPago) > 0;
+                  });
+                  
+                  const totalItensEmAberto = faturamentosEmAberto.length + reservasEmAberto.length;
+                  
+                  return totalItensEmAberto === 0 && (
+                    <div className="text-center py-8 text-gray-500 bg-white rounded-lg shadow">
+                      <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma Pendência Financeira!</h3>
+                      <p className="text-sm">
+                        {searchTerm ? 
+                          'Nenhum resultado encontrado para sua busca.' :
+                          'Todos os faturamentos e reservas estão com pagamentos em dia.'
+                        }
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* Tabela Desktop */}
+              {/* Tabela Desktop Unificada */}
               <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mês/Quadra</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origem/Cliente</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descrição</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recebido</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Em Aberto</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsável</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {faturamentos
-                        .filter(faturamento => {
+                      {(() => {
+                        // Criar lista unificada de itens financeiros APENAS COM VALORES EM ABERTO
+                        const itensFinanceiros = [];
+                        
+                        // Adicionar APENAS faturamentos com valores em aberto
+                        faturamentos.forEach(faturamento => {
+                          const valorEmAberto = faturamento.valorEmAberto || 0;
+                          if (valorEmAberto > 0) {
+                            itensFinanceiros.push({
+                              id: `fat_${faturamento.id}`,
+                              tipo: 'faturamento',
+                              origem: 'Faturamento Administrativo',
+                              cliente: faturamento.cliente,
+                              descricao: `${faturamento.tipoQuadra} - ${faturamento.mesLocacao}`,
+                              data: faturamento.data,
+                              valor: faturamento.valor,
+                              valorRecebido: faturamento.valorRealRecebido || 0,
+                              valorEmAberto: valorEmAberto,
+                              formaPagamento: faturamento.formaPagamento,
+                              status: 'Em Aberto',
+                              item: faturamento
+                            });
+                          }
+                        });
+                        
+                        // Adicionar APENAS reservas com valores em aberto ou parciais
+                        reservas.forEach(reserva => {
+                          const valorTotal = reserva.valor || 0;
+                          const valorPago = reserva.valorPago || 0;
+                          const valorEmAberto = Math.max(0, valorTotal - valorPago);
+                          
+                          if (valorEmAberto > 0) {
+                            const cliente = clientes.find(c => c.id === reserva.clienteId);
+                            const quadra = quadras.find(q => q.id === reserva.quadraId);
+                            
+                            let status = 'Em Aberto';
+                            if (valorPago > 0) {
+                              status = 'Parcial';
+                            }
+                            
+                            itensFinanceiros.push({
+                              id: `res_${reserva.id}`,
+                              tipo: 'reserva',
+                              origem: 'Reserva de Quadra',
+                              cliente: cliente?.nome || 'Cliente N/A',
+                              descricao: `${quadra?.nome} - ${reserva.data} (${reserva.horaInicio}-${reserva.horaFim})`,
+                              data: reserva.data,
+                              valor: valorTotal,
+                              valorRecebido: valorPago,
+                              valorEmAberto: valorEmAberto,
+                              formaPagamento: reserva.formaPagamento || '',
+                              status: status,
+                              item: reserva
+                            });
+                          }
+                        });
+                        
+                        // Filtrar itens
+                        const itensFiltrados = itensFinanceiros.filter(item => {
                           const matchSearch = !searchTerm || 
-                            faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
-                          const matchStatus = !filtroData || faturamento.status === filtroData;
+                            item.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+                          const matchStatus = !filtroData || item.status === filtroData;
                           return matchSearch && matchStatus;
-                        })
-                        .map((faturamento) => (
-                          <tr key={faturamento.id} className="hover:bg-gray-50">
+                        });
+                        
+                        // Ordenar por data
+                        itensFiltrados.sort((a, b) => new Date(b.data) - new Date(a.data));
+                        
+                        const resultados = itensFiltrados.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{faturamento.cliente}</div>
-                                <div className="text-sm text-gray-500">{faturamento.data}</div>
+                              <div className="flex items-center">
+                                <div className={`w-3 h-3 rounded-full mr-3 ${
+                                  item.tipo === 'faturamento' ? 'bg-blue-500' : 'bg-green-500'
+                                }`}></div>
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">{item.cliente}</div>
+                                  <div className={`text-xs font-medium ${
+                                    item.tipo === 'faturamento' ? 'text-blue-600' : 'text-green-600'
+                                  }`}>
+                                    {item.origem}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{faturamento.mesLocacao}</div>
-                              <div className="text-sm text-gray-500">{faturamento.tipoQuadra}</div>
+                              <div className="text-sm text-gray-900">{item.descricao}</div>
+                              <div className="text-sm text-gray-500">{new Date(item.data).toLocaleDateString('pt-BR')}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              R$ {faturamento.valor?.toFixed(2)}
+                              R$ {item.valor?.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                              R$ {faturamento.valorRealRecebido?.toFixed(2)}
+                              R$ {item.valorRecebido?.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                              R$ {faturamento.valorEmAberto?.toFixed(2)}
+                              R$ {item.valorEmAberto?.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                faturamento.status === 'Pago' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                item.status === 'Pago' ? 'bg-green-100 text-green-800' :
+                                item.status === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
                               }`}>
-                                {faturamento.status}
+                                {item.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {faturamento.usuarioResponsavel || 'N/A'}
-                              </div>
-                              {faturamento.dataLancamento && (
-                                <div className="text-xs text-gray-500">
-                                  {new Date(faturamento.dataLancamento).toLocaleDateString('pt-BR')}
-                                </div>
-                              )}
-                              {faturamento.ultimoRecebimento && (
-                                <div className="text-xs text-blue-600">
-                                  Último receb.: {faturamento.ultimoRecebimento.usuario}
-                                </div>
-                              )}
-                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <button
-                                onClick={() => editarFaturamento(faturamento)}
-                                className="text-blue-600 hover:text-blue-900 mr-3"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => excluirFaturamento(faturamento.id)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center space-x-2">
+                                {item.valorEmAberto > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setFormRecebimento({
+                                        faturamentoId: item.id,
+                                        data: new Date().toISOString().split('T')[0],
+                                        valor: item.valorEmAberto.toString(),
+                                        formaPagamento: '',
+                                        observacoes: ''
+                                      });
+                                      setModalType('recebimento');
+                                      setShowModal(true);
+                                    }}
+                                    className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 flex items-center space-x-1"
+                                    title="Lançar Recebimento"
+                                  >
+                                    <CreditCard className="h-3 w-3" />
+                                    <span>Receber</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    if (item.tipo === 'faturamento') {
+                                      editarFaturamento(item.item);
+                                    } else {
+                                      editarReserva(item.item);
+                                    }
+                                  }}
+                                  className={`${
+                                    item.tipo === 'faturamento' ? 'text-blue-600 hover:text-blue-900' : 'text-green-600 hover:text-green-900'
+                                  }`}
+                                  title="Editar"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (item.tipo === 'faturamento') {
+                                      excluirFaturamento(item.item.id);
+                                    } else {
+                                      excluirReserva(item.item.id);
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-900"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
-                        ))}
+                        ));
+                        
+                        return resultados.length > 0 ? resultados : (
+                          <tr>
+                            <td colSpan="7" className="px-6 py-12 text-center">
+                              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma Pendência Financeira!</h3>
+                              <p className="text-sm text-gray-500">
+                                {searchTerm ? 
+                                  'Nenhum resultado encontrado para sua busca.' :
+                                  'Todos os faturamentos e reservas estão com pagamentos em dia.'
+                                }
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -2663,11 +2332,46 @@ const QuadraManagementSystem = () => {
                   <div className="p-4 md:p-6">
                     <div className="space-y-3">
                       {recebimentos.slice(-10).reverse().map((recebimento) => {
-                        const faturamento = faturamentos.find(f => f.id === recebimento.faturamentoId);
+                        let nomeCliente, descricaoItem, tipoOrigem;
+                        
+                        if (recebimento.tipoItem === 'faturamento' || recebimento.faturamentoId) {
+                          const faturamento = faturamentos.find(f => f.id === (recebimento.faturamentoId || parseInt(recebimento.faturamentoId)));
+                          nomeCliente = faturamento?.cliente || 'Cliente não encontrado';
+                          descricaoItem = faturamento ? `${faturamento.tipoQuadra} - ${faturamento.mesLocacao}` : 'Faturamento excluído';
+                          tipoOrigem = 'Faturamento';
+                        } else if (recebimento.tipoItem === 'reserva' || recebimento.reservaId) {
+                          const reserva = reservas.find(r => r.id === recebimento.reservaId);
+                          if (reserva) {
+                            const cliente = clientes.find(c => c.id === reserva.clienteId);
+                            const quadra = quadras.find(q => q.id === reserva.quadraId);
+                            nomeCliente = cliente?.nome || 'Cliente não encontrado';
+                            descricaoItem = `${quadra?.nome} - ${reserva.data} (${reserva.horaInicio}-${reserva.horaFim})`;
+                            tipoOrigem = 'Reserva';
+                          } else {
+                            nomeCliente = 'Reserva não encontrada';
+                            descricaoItem = 'Reserva excluída';
+                            tipoOrigem = 'Reserva';
+                          }
+                        } else {
+                          // Para recebimentos antigos (compatibilidade)
+                          const faturamento = faturamentos.find(f => f.id === recebimento.faturamentoId);
+                          nomeCliente = faturamento?.cliente || 'Cliente não encontrado';
+                          descricaoItem = faturamento ? `${faturamento.tipoQuadra} - ${faturamento.mesLocacao}` : 'Item excluído';
+                          tipoOrigem = 'Faturamento';
+                        }
+                        
                         return (
                           <div key={recebimento.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{faturamento?.cliente || 'Cliente não encontrado'}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium truncate">{nomeCliente}</p>
+                                <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                  tipoOrigem === 'Faturamento' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {tipoOrigem}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 truncate">{descricaoItem}</p>
                               <p className="text-sm text-gray-600 truncate">
                                 {recebimento.data} - {recebimento.formaPagamento}
                               </p>
@@ -3289,8 +2993,6 @@ const QuadraManagementSystem = () => {
                 </div>
               </div>
 
-
-
               {/* Conteúdo do Relatório */}
               <div className="bg-white rounded-lg shadow overflow-hidden print:shadow-none print:border-0 print:rounded-none">
                 <div className="p-3 md:p-6 print:p-0 print:m-0">
@@ -3440,7 +3142,7 @@ const QuadraManagementSystem = () => {
                                   
                                   return (
                                     <div key={quadra.id} className="border rounded-lg p-4">
-                                      <h4 className="text-base font-semibold text-gray-800 mb-3">
+                                      <h4 className="text-base font-semibold text-gray-808 mb-3">
                                         {quadra.nome} - {quadra.modalidade}
                                       </h4>
                                       <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
@@ -4562,14 +4264,39 @@ const QuadraManagementSystem = () => {
                     onChange={(e) => setFormRecebimento({...formRecebimento, faturamentoId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
-                    <option value="">Selecione o Faturamento</option>
+                    <option value="">Selecione o Item Financeiro</option>
+                    
+                    {/* Faturamentos com valores em aberto */}
                     {faturamentos
                       .filter(f => f.valorEmAberto > 0)
                       .map(faturamento => (
-                        <option key={faturamento.id} value={faturamento.id}>
-                          {faturamento.cliente} - {faturamento.mesLocacao} (R$ {faturamento.valorEmAberto?.toFixed(2)} em aberto)
+                        <option key={`fat_${faturamento.id}`} value={`fat_${faturamento.id}`}>
+                          [FATURAMENTO] {faturamento.cliente} - {faturamento.mesLocacao} (R$ {faturamento.valorEmAberto?.toFixed(2)} em aberto)
                         </option>
                       ))}
+                    
+                    {/* Reservas com valores em aberto */}
+                    {reservas
+                      .filter(r => {
+                        const valorTotal = r.valor || 0;
+                        const valorPago = r.valorPago || 0;
+                        const valorEmAberto = Math.max(0, valorTotal - valorPago);
+                        return valorEmAberto > 0;
+                      })
+                      .map(reserva => {
+                        const cliente = clientes.find(c => c.id === reserva.clienteId);
+                        const quadra = quadras.find(q => q.id === reserva.quadraId);
+                        const valorTotal = reserva.valor || 0;
+                        const valorPago = reserva.valorPago || 0;
+                        const valorEmAberto = Math.max(0, valorTotal - valorPago);
+                        const statusStr = valorPago === 0 ? 'EM ABERTO' : 'PARCIAL';
+                        
+                        return (
+                          <option key={`res_${reserva.id}`} value={`res_${reserva.id}`}>
+                            [RESERVA-{statusStr}] {cliente?.nome} - {quadra?.nome} {new Date(reserva.data).toLocaleDateString('pt-BR')} (R$ {valorEmAberto.toFixed(2)} em aberto)
+                          </option>
+                        );
+                      })}
                   </select>
                   
                   <input

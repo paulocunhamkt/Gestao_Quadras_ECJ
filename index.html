@@ -36,7 +36,7 @@
           } catch (error) {
               console.warn('Could not load storedState.json, using inline data:', error);
               // Fallback to inline stored state data for file:// URLs
-              initialStorage = {"quadras":[{"id":1,"nome":"Campo de Futebol 1","ativa":true,"valorHora":100,"modalidade":"Campo de Futebol"},{"id":2,"nome":"Quadra de Futsal 1","ativa":true,"valorHora":50,"modalidade":"Quadra de Futsal"}],"usuarioLogado":{"id":1,"nome":"Administrador","cargo":"Administrador Geral","senha":"jurema2025","usuario":"admin"},"isAuthenticated":true,"reservas":[{"id":1753233299005,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"06:00","horaFim":"07:00","valor":50,"status":"Confirmada","statusPagamento":"Pago","valorPago":50,"formaPagamento":"Pix","dataPagamento":"2025-07-23","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:14:59.005Z"},{"id":1753233432422,"quadraId":2,"clienteId":2,"data":"2025-07-23","horaInicio":"07:05","horaFim":"08:05","valor":50,"status":"Confirmada","statusPagamento":"Pendente","valorPago":0,"formaPagamento":"","dataPagamento":"","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:17:12.422Z"},{"id":1753233540897,"quadraId":2,"clienteId":1,"data":"2025-07-23","horaInicio":"08:10","horaFim":"09:10","valor":50,"status":"Confirmada","statusPagamento":"Parcial","valorPago":25,"formaPagamento":"Pix","dataPagamento":"2025-07-24","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:19:00.897Z"},{"id":1753234477985,"quadraId":2,"clienteId":2,"data":"2025-07-23","horaInicio":"09:15","horaFim":"10:15","valor":50,"status":"Confirmada","statusPagamento":"Pago","valorPago":50,"formaPagamento":"Pix","dataPagamento":"2025-07-23","observacoes":"","usuarioResponsavel":"Administrador","dataLancamento":"2025-07-23T01:34:37.985Z"}],"clientes":[{"id":1,"nome":"João Silva","telefone":"(11) 99999-9999","email":"joao@email.com"},{"id":2,"nome":"Maria Santos","telefone":"(11) 88888-8888","email":"maria@email.com"},{"id":1753233649746,"nome":"paulo","telefone":"19999217641","email":"pauloricardodestaque@hotmail.com"}],"backupLogs":[{"id":1753236368893,"data":"22/07/2025","hora":"23:06:08","timestamp":"2025-07-23T02:06:08.893Z","tipo":"automatico","usuario":"Administrador","status":"Sucesso","tamanho":2657,"registros":9,"observacoes":"Backup automatico executado com sucesso"}],"ultimoBackup":"2025-07-23T02:06:08.893Z","configuracaoBackup":{"autoBackup":false,"intervaloDias":1,"manterHistorico":30,"incluirLogs":true,"compactarDados":true}};
+              initialStorage = {"quadras":[{"id":1,"nome":"Campo de Futebol 1","ativa":true,"valorHora":100,"modalidade":"Campo de Futebol"},{"id":2,"nome":"Quadra de Futsal 1","ativa":true,"valorHora":50,"modalidade":"Quadra de Futsal"}],"clientes":[{"id":1,"nome":"João Silva","email":"joao@email.com","telefone":"(11) 99999-9999"},{"id":2,"nome":"Maria Santos","email":"maria@email.com","telefone":"(11) 88888-8888"},{"id":1753233649746,"nome":"paulo","email":"pauloricardodestaque@hotmail.com","telefone":"19999217641"}],"reservas":[{"id":1753233299005,"data":"2025-07-23","valor":50,"status":"Confirmada","horaFim":"07:00","quadraId":2,"clienteId":1,"valorPago":50,"horaInicio":"06:00","observacoes":"","dataPagamento":"2025-07-23","dataLancamento":"2025-07-23T01:14:59.005Z","formaPagamento":"Pix","statusPagamento":"Pago","usuarioResponsavel":"Administrador"},{"id":1753233432422,"data":"2025-07-23","valor":50,"status":"Confirmada","horaFim":"08:05","quadraId":2,"clienteId":2,"valorPago":0,"horaInicio":"07:05","observacoes":"","dataPagamento":"","dataLancamento":"2025-07-23T01:17:12.422Z","formaPagamento":"","statusPagamento":"Pendente","usuarioResponsavel":"Administrador"},{"id":1753233540897,"data":"2025-07-23","valor":50,"status":"Confirmada","horaFim":"09:10","quadraId":2,"clienteId":1,"valorPago":25,"horaInicio":"08:10","observacoes":"","dataPagamento":"2025-07-24","dataLancamento":"2025-07-23T01:19:00.897Z","formaPagamento":"Pix","statusPagamento":"Parcial","usuarioResponsavel":"Administrador"},{"id":1753234477985,"data":"2025-07-23","valor":50,"status":"Confirmada","horaFim":"10:15","quadraId":2,"clienteId":2,"valorPago":50,"horaInicio":"09:15","observacoes":"","dataPagamento":"2025-07-23","dataLancamento":"2025-07-23T01:34:37.985Z","formaPagamento":"Pix","statusPagamento":"Pago","usuarioResponsavel":"Administrador"}],"backupLogs":[{"id":1753236368893,"data":"22/07/2025","hora":"23:06:08","tipo":"automatico","status":"Sucesso","tamanho":2657,"usuario":"Administrador","registros":9,"timestamp":"2025-07-23T02:06:08.893Z","observacoes":"Backup automatico executado com sucesso"}],"ultimoBackup":"2025-07-23T02:06:08.893Z","usuarioLogado":{"id":1,"nome":"Administrador","cargo":"Administrador Geral","senha":"jurema2025","usuario":"admin"},"isAuthenticated":true,"configuracaoBackup":{"autoBackup":false,"incluirLogs":true,"intervaloDias":1,"compactarDados":true,"manterHistorico":30}};
           }
 
           // Initialize localStorage with stored state
@@ -331,51 +331,108 @@ var QuadraManagementSystem = () => {
     }
   };
   const adicionarRecebimento = () => {
+    const tipoId = formRecebimento.faturamentoId;
+    const [tipo, idStr] = tipoId.split("_");
+    const id = parseInt(idStr);
+    const valorRecebimento = parseFloat(formRecebimento.valor);
     const novoRecebimento = {
       id: Date.now(),
       ...formRecebimento,
-      faturamentoId: parseInt(formRecebimento.faturamentoId),
-      valor: parseFloat(formRecebimento.valor),
+      faturamentoId: tipo === "fat" ? id : null,
+      reservaId: tipo === "res" ? id : null,
+      tipoItem: tipo === "fat" ? "faturamento" : "reserva",
+      valor: valorRecebimento,
       usuarioResponsavel: usuarioLogado?.nome || "Sistema",
       dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
     };
     setRecebimentos([...recebimentos, novoRecebimento]);
-    setFaturamentos(faturamentos.map((f) => {
-      if (f.id === parseInt(formRecebimento.faturamentoId)) {
-        const novoValorRecebido = f.valorRealRecebido + parseFloat(formRecebimento.valor);
-        const novoValorEmAberto = f.valor - novoValorRecebido;
-        return {
-          ...f,
-          valorRealRecebido: novoValorRecebido,
-          valorEmAberto: Math.max(0, novoValorEmAberto),
-          status: novoValorEmAberto <= 0 ? "Pago" : "Em Aberto",
-          ultimoRecebimento: {
-            usuario: usuarioLogado?.nome || "Sistema",
-            data: (/* @__PURE__ */ new Date()).toISOString()
+    if (tipo === "fat") {
+      setFaturamentos(faturamentos.map((f) => {
+        if (f.id === id) {
+          const novoValorRecebido = f.valorRealRecebido + valorRecebimento;
+          const novoValorEmAberto = f.valor - novoValorRecebido;
+          return {
+            ...f,
+            valorRealRecebido: novoValorRecebido,
+            valorEmAberto: Math.max(0, novoValorEmAberto),
+            status: novoValorEmAberto <= 0 ? "Pago" : "Em Aberto",
+            ultimoRecebimento: {
+              usuario: usuarioLogado?.nome || "Sistema",
+              data: (/* @__PURE__ */ new Date()).toISOString()
+            }
+          };
+        }
+        return f;
+      }));
+    } else {
+      setReservas(reservas.map((r) => {
+        if (r.id === id) {
+          const valorAtual = r.valorPago || 0;
+          const novoValorPago = valorAtual + valorRecebimento;
+          const valorTotal = r.valor || 0;
+          let novoStatusPagamento = "Pendente";
+          if (novoValorPago >= valorTotal) {
+            novoStatusPagamento = "Pago";
+          } else if (novoValorPago > 0) {
+            novoStatusPagamento = "Parcial";
           }
-        };
-      }
-      return f;
-    }));
+          return {
+            ...r,
+            valorPago: novoValorPago,
+            statusPagamento: novoStatusPagamento,
+            formaPagamento: formRecebimento.formaPagamento,
+            dataPagamento: formRecebimento.data,
+            ultimoRecebimento: {
+              usuario: usuarioLogado?.nome || "Sistema",
+              data: (/* @__PURE__ */ new Date()).toISOString(),
+              valor: valorRecebimento
+            }
+          };
+        }
+        return r;
+      }));
+    }
     fecharModal();
   };
   const excluirRecebimento = (id) => {
     const recebimento = recebimentos.find((r) => r.id === id);
     if (recebimento && confirm("Tem certeza que deseja excluir este recebimento?")) {
       setRecebimentos(recebimentos.filter((r) => r.id !== id));
-      setFaturamentos(faturamentos.map((f) => {
-        if (f.id === recebimento.faturamentoId) {
-          const novoValorRecebido = f.valorRealRecebido - recebimento.valor;
-          const novoValorEmAberto = f.valor - novoValorRecebido;
-          return {
-            ...f,
-            valorRealRecebido: Math.max(0, novoValorRecebido),
-            valorEmAberto: novoValorEmAberto,
-            status: novoValorEmAberto > 0 ? "Em Aberto" : "Pago"
-          };
-        }
-        return f;
-      }));
+      if (recebimento.tipoItem === "faturamento" && recebimento.faturamentoId) {
+        setFaturamentos(faturamentos.map((f) => {
+          if (f.id === recebimento.faturamentoId) {
+            const novoValorRecebido = f.valorRealRecebido - recebimento.valor;
+            const novoValorEmAberto = f.valor - novoValorRecebido;
+            return {
+              ...f,
+              valorRealRecebido: Math.max(0, novoValorRecebido),
+              valorEmAberto: novoValorEmAberto,
+              status: novoValorEmAberto > 0 ? "Em Aberto" : "Pago"
+            };
+          }
+          return f;
+        }));
+      } else if (recebimento.tipoItem === "reserva" && recebimento.reservaId) {
+        setReservas(reservas.map((r) => {
+          if (r.id === recebimento.reservaId) {
+            const valorAtual = r.valorPago || 0;
+            const novoValorPago = Math.max(0, valorAtual - recebimento.valor);
+            const valorTotal = r.valor || 0;
+            let novoStatusPagamento = "Pendente";
+            if (novoValorPago >= valorTotal) {
+              novoStatusPagamento = "Pago";
+            } else if (novoValorPago > 0) {
+              novoStatusPagamento = "Parcial";
+            }
+            return {
+              ...r,
+              valorPago: novoValorPago,
+              statusPagamento: novoStatusPagamento
+            };
+          }
+          return r;
+        }));
+      }
     }
   };
   const adicionarCliente = () => {
@@ -1239,7 +1296,7 @@ Detalhes: \${error.message}\`);
   ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome)), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R\$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && \`Forma: \${reserva.formaPagamento}\`, reserva.dataPagamento && \` \\u2022 Data: \${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}\`), reserva.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\\xE7ado por: ", reserva.usuarioResponsavel, reserva.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\\u2022 ", new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome)), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R\$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && \`Forma: \${reserva.formaPagamento}\`, reserva.dataPagamento && \` \\u2022 Data: \${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}\`), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -1254,10 +1311,10 @@ Detalhes: \${error.message}\`);
       },
       /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
     )));
-  }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Respons\\xE1vel"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\\xE7\\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
+  }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\\xE7\\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R\$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \\u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, reserva.usuarioResponsavel || "N/A"), reserva.dataLancamento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500" }, new Date(reserva.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, quadra?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R\$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \\u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => editarReserva(reserva),
@@ -1336,7 +1393,7 @@ Detalhes: \${error.message}\`);
       className: "text-red-600 hover:text-red-900"
     },
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  )))))))), activeTab === "financeiro" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Controle Financeiro"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gest\\xE3o de faturamentos e recebimentos")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 w-full sm:w-auto" }, /* @__PURE__ */ React.createElement(
+  )))))))), activeTab === "financeiro" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Controle Financeiro"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gest\\xE3o de pend\\xEAncias financeiras - Apenas lan\\xE7amentos em aberto e parciais")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 w-full sm:w-auto" }, /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => {
@@ -1368,8 +1425,10 @@ Detalhes: \${error.message}\`);
     return (reservasPagas + faturamentosRecebidos).toFixed(2);
   })())))), /* @__PURE__ */ React.createElement("div", { className: "bg-red-50 p-3 md:p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(AlertCircle, { className: "h-6 w-6 md:h-8 md:w-8 text-red-500 mr-2 md:mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-xs md:text-sm font-medium text-red-900" }, "Em Aberto"), /* @__PURE__ */ React.createElement("p", { className: "text-sm md:text-xl font-bold text-red-600" }, "R\$ ", (() => {
     const reservasEmAberto = reservas.reduce((acc, r) => {
-      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
-      return acc + Math.max(0, valorPendente);
+      const valorTotal = r.valor || 0;
+      const valorPago = r.valorPago || 0;
+      const valorPendente = Math.max(0, valorTotal - valorPago);
+      return acc + valorPendente;
     }, 0);
     const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
     return (reservasEmAberto + faturamentosEmAberto).toFixed(2);
@@ -1381,199 +1440,7 @@ Detalhes: \${error.message}\`);
     const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
     const totalRecebido = reservasRecebidas + faturamentosRecebidos;
     return totalReceita > 0 ? Math.round(totalRecebido / totalReceita * 100) : 0;
-  })(), "%"))))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Status dos Faturamentos"), /* @__PURE__ */ React.createElement(PieChart, { className: "h-5 w-5 text-blue-500" })), (() => {
-    const receitaReservas = reservas.reduce((acc, r) => acc + (r.valor || 0), 0);
-    const receitaFaturamentos = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-    const totalFaturado = receitaReservas + receitaFaturamentos;
-    const reservasRecebidas = reservas.filter((r) => r.status === "Confirmada").reduce((acc, r) => acc + (r.valor || 0), 0);
-    const faturamentosRecebidos = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-    const totalRecebido = reservasRecebidas + faturamentosRecebidos;
-    const reservasEmAberto = reservas.reduce((acc, r) => {
-      const valorPendente = (r.valor || 0) - (r.valorPago || 0);
-      return acc + Math.max(0, valorPendente);
-    }, 0);
-    const faturamentosEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
-    const totalEmAberto = reservasEmAberto + faturamentosEmAberto;
-    const percentualRecebido = totalFaturado > 0 ? totalRecebido / totalFaturado * 100 : 0;
-    const percentualEmAberto = totalFaturado > 0 ? totalEmAberto / totalFaturado * 100 : 0;
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-center mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-32 h-32" }, /* @__PURE__ */ React.createElement("svg", { className: "w-32 h-32 transform -rotate-90", viewBox: "0 0 36 36" }, /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#f3f4f6",
-        strokeWidth: "3"
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#10b981",
-        strokeWidth: "3",
-        strokeDasharray: \`\${percentualRecebido}, 100\`
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#ef4444",
-        strokeWidth: "3",
-        strokeDasharray: \`\${percentualEmAberto}, 100\`,
-        strokeDashoffset: -percentualRecebido
-      }
-    )), /* @__PURE__ */ React.createElement("div", { className: "absolute inset-0 flex items-center justify-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-bold text-gray-900" }, Math.round(percentualRecebido), "%"), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600" }, "Recebido"))))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-500 rounded-full mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-700" }, "Recebido")), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", totalRecebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-red-500 rounded-full mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-700" }, "Em Aberto")), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", totalEmAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "border-t pt-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Total Faturado"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-blue-600" }, "R\$ ", totalFaturado.toFixed(2))))));
-  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Faturamento por M\\xEAs"), /* @__PURE__ */ React.createElement(BarChart3, { className: "h-5 w-5 text-blue-500" })), (() => {
-    const faturamentosPorMes = {};
-    const recebimentosPorMes = {};
-    reservas.forEach((r) => {
-      if (r.data) {
-        const mes = r.data.substring(0, 7);
-        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (r.valor || 0);
-        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (r.valorPago || 0);
-      }
-    });
-    faturamentos.forEach((f) => {
-      if (f.data) {
-        const mes = f.data.substring(0, 7);
-        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
-        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
-      }
-    });
-    const hoje2 = /* @__PURE__ */ new Date();
-    const meses = [];
-    for (let i = 5; i >= 0; i--) {
-      const data = new Date(hoje2.getFullYear(), hoje2.getMonth() - i, 1);
-      const mesAno = \`\${data.getFullYear()}-\${(data.getMonth() + 1).toString().padStart(2, "0")}\`;
-      const nomemes = data.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase();
-      meses.push({
-        id: mesAno,
-        nome: nomemes,
-        faturado: faturamentosPorMes[mesAno] || 0,
-        recebido: recebimentosPorMes[mesAno] || 0
-      });
-    }
-    const maxValor = Math.max(...meses.map((m) => Math.max(m.faturado, m.recebido)));
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, meses.map((mes, index) => /* @__PURE__ */ React.createElement("div", { key: mes.id, className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-700" }, mes.nome), /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "R\$ ", mes.faturado.toFixed(0), " / R\$ ", mes.recebido.toFixed(0))), /* @__PURE__ */ React.createElement("div", { className: "relative" }, /* @__PURE__ */ React.createElement("div", { className: "w-full bg-gray-200 rounded-full h-4 relative overflow-hidden" }, /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        className: "bg-blue-500 h-full rounded-full transition-all duration-300",
-        style: { width: \`\${maxValor > 0 ? mes.faturado / maxValor * 100 : 0}%\` }
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        className: "bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300",
-        style: { width: \`\${maxValor > 0 ? mes.recebido / maxValor * 100 : 0}%\` }
-      }
-    )))))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-center space-x-4 pt-4 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-blue-500 rounded mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600" }, "Faturado")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-500 rounded mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600" }, "Recebido"))));
-  })())), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900 mb-4" }, "An\\xE1lise por Tipo de Loca\\xE7\\xE3o"), (() => {
-    const analise = {
-      mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
-      avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
-    };
-    reservas.forEach((r) => {
-      const tipo = "avulso";
-      analise[tipo].faturado += r.valor || 0;
-      analise[tipo].recebido += r.valorPago || 0;
-      const valorEmAberto = (r.valor || 0) - (r.valorPago || 0);
-      analise[tipo].emAberto += Math.max(0, valorEmAberto);
-      analise[tipo].count += 1;
-    });
-    faturamentos.forEach((f) => {
-      const tipo = f.tipoLocacao?.toLowerCase() === "mensal" ? "mensal" : "avulso";
-      analise[tipo].faturado += f.valor || 0;
-      analise[tipo].recebido += f.valorRealRecebido || 0;
-      analise[tipo].emAberto += f.valorEmAberto || 0;
-      analise[tipo].count += 1;
-    });
-    return /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-900 mb-3 flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-4 w-4 text-blue-500 mr-2" }), "Loca\\xE7\\xF5es Mensais"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Contratos:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium" }, analise.mensal.count)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-blue-600" }, "R\$ ", analise.mensal.faturado.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", analise.mensal.recebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Em Aberto:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", analise.mensal.emAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "pt-2 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Taxa de Recebimento:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-purple-600" }, analise.mensal.faturado > 0 ? Math.round(analise.mensal.recebido / analise.mensal.faturado * 100) : 0, "%"))))), /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-900 mb-3 flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-4 w-4 text-orange-500 mr-2" }), "Loca\\xE7\\xF5es Avulsas"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Loca\\xE7\\xF5es:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium" }, analise.avulso.count)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-blue-600" }, "R\$ ", analise.avulso.faturado.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", analise.avulso.recebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Em Aberto:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", analise.avulso.emAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "pt-2 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Taxa de Recebimento:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-purple-600" }, analise.avulso.faturado > 0 ? Math.round(analise.avulso.recebido / analise.avulso.faturado * 100) : 0, "%"))))));
-  })()), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Status dos Faturamentos"), /* @__PURE__ */ React.createElement(PieChart, { className: "h-5 w-5 text-blue-500" })), (() => {
-    const totalFaturado = faturamentos.reduce((acc, f) => acc + (f.valor || 0), 0);
-    const totalRecebido = faturamentos.reduce((acc, f) => acc + (f.valorRealRecebido || 0), 0);
-    const totalEmAberto = faturamentos.reduce((acc, f) => acc + (f.valorEmAberto || 0), 0);
-    const percentualRecebido = totalFaturado > 0 ? totalRecebido / totalFaturado * 100 : 0;
-    const percentualEmAberto = totalFaturado > 0 ? totalEmAberto / totalFaturado * 100 : 0;
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-center mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "relative w-32 h-32" }, /* @__PURE__ */ React.createElement("svg", { className: "w-32 h-32 transform -rotate-90", viewBox: "0 0 36 36" }, /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#f3f4f6",
-        strokeWidth: "3"
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#10b981",
-        strokeWidth: "3",
-        strokeDasharray: \`\${percentualRecebido}, 100\`
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "path",
-      {
-        d: "M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831",
-        fill: "none",
-        stroke: "#ef4444",
-        strokeWidth: "3",
-        strokeDasharray: \`\${percentualEmAberto}, 100\`,
-        strokeDashoffset: -percentualRecebido
-      }
-    )), /* @__PURE__ */ React.createElement("div", { className: "absolute inset-0 flex items-center justify-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-bold text-gray-900" }, Math.round(percentualRecebido), "%"), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600" }, "Recebido"))))), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-500 rounded-full mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-700" }, "Recebido")), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", totalRecebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-red-500 rounded-full mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-700" }, "Em Aberto")), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", totalEmAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "border-t pt-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Total Faturado"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-blue-600" }, "R\$ ", totalFaturado.toFixed(2))))));
-  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Faturamento por M\\xEAs"), /* @__PURE__ */ React.createElement(BarChart3, { className: "h-5 w-5 text-blue-500" })), (() => {
-    const faturamentosPorMes = {};
-    const recebimentosPorMes = {};
-    faturamentos.forEach((f) => {
-      if (f.data) {
-        const mes = f.data.substring(0, 7);
-        faturamentosPorMes[mes] = (faturamentosPorMes[mes] || 0) + (f.valor || 0);
-        recebimentosPorMes[mes] = (recebimentosPorMes[mes] || 0) + (f.valorRealRecebido || 0);
-      }
-    });
-    const hoje2 = /* @__PURE__ */ new Date();
-    const meses = [];
-    for (let i = 5; i >= 0; i--) {
-      const data = new Date(hoje2.getFullYear(), hoje2.getMonth() - i, 1);
-      const mesAno = \`\${data.getFullYear()}-\${(data.getMonth() + 1).toString().padStart(2, "0")}\`;
-      const nomemes = data.toLocaleDateString("pt-BR", { month: "short" }).toUpperCase();
-      meses.push({
-        id: mesAno,
-        nome: nomemes,
-        faturado: faturamentosPorMes[mesAno] || 0,
-        recebido: recebimentosPorMes[mesAno] || 0
-      });
-    }
-    const maxValor = Math.max(...meses.map((m) => Math.max(m.faturado, m.recebido)));
-    return /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, meses.map((mes, index) => /* @__PURE__ */ React.createElement("div", { key: mes.id, className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between text-sm" }, /* @__PURE__ */ React.createElement("span", { className: "font-medium text-gray-700" }, mes.nome), /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "R\$ ", mes.faturado.toFixed(0), " / R\$ ", mes.recebido.toFixed(0))), /* @__PURE__ */ React.createElement("div", { className: "relative" }, /* @__PURE__ */ React.createElement("div", { className: "w-full bg-gray-200 rounded-full h-4 relative overflow-hidden" }, /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        className: "bg-blue-500 h-full rounded-full transition-all duration-300",
-        style: { width: \`\${maxValor > 0 ? mes.faturado / maxValor * 100 : 0}%\` }
-      }
-    ), /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        className: "bg-green-500 h-full rounded-full absolute top-0 left-0 transition-all duration-300",
-        style: { width: \`\${maxValor > 0 ? mes.recebido / maxValor * 100 : 0}%\` }
-      }
-    )))))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-center space-x-4 pt-4 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-blue-500 rounded mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600" }, "Faturado")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: "w-3 h-3 bg-green-500 rounded mr-2" }), /* @__PURE__ */ React.createElement("span", { className: "text-xs text-gray-600" }, "Recebido"))));
-  })())), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900 mb-4" }, "An\\xE1lise por Tipo de Loca\\xE7\\xE3o"), (() => {
-    const analise = {
-      mensal: { faturado: 0, recebido: 0, emAberto: 0, count: 0 },
-      avulso: { faturado: 0, recebido: 0, emAberto: 0, count: 0 }
-    };
-    faturamentos.forEach((f) => {
-      const tipo = f.tipoLocacao?.toLowerCase() === "mensal" ? "mensal" : "avulso";
-      analise[tipo].faturado += f.valor || 0;
-      analise[tipo].recebido += f.valorRealRecebido || 0;
-      analise[tipo].emAberto += f.valorEmAberto || 0;
-      analise[tipo].count += 1;
-    });
-    return /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" }, /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-900 mb-3 flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-4 w-4 text-blue-500 mr-2" }), "Loca\\xE7\\xF5es Mensais"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Contratos:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium" }, analise.mensal.count)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-blue-600" }, "R\$ ", analise.mensal.faturado.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", analise.mensal.recebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Em Aberto:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", analise.mensal.emAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "pt-2 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Taxa de Recebimento:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-purple-600" }, analise.mensal.faturado > 0 ? Math.round(analise.mensal.recebido / analise.mensal.faturado * 100) : 0, "%"))))), /* @__PURE__ */ React.createElement("div", { className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-900 mb-3 flex items-center" }, /* @__PURE__ */ React.createElement(Clock, { className: "h-4 w-4 text-orange-500 mr-2" }), "Loca\\xE7\\xF5es Avulsas"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Loca\\xE7\\xF5es:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium" }, analise.avulso.count)), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-blue-600" }, "R\$ ", analise.avulso.faturado.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-green-600" }, "R\$ ", analise.avulso.recebido.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm text-gray-600" }, "Em Aberto:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-red-600" }, "R\$ ", analise.avulso.emAberto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "pt-2 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", { className: "text-sm font-medium text-gray-900" }, "Taxa de Recebimento:"), /* @__PURE__ */ React.createElement("span", { className: "text-sm font-bold text-purple-600" }, analise.avulso.faturado > 0 ? Math.round(analise.avulso.recebido / analise.avulso.faturado * 100) : 0, "%"))))));
-  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement(
+  })(), "%"))))), /* @__PURE__ */ React.createElement("div", { className: "bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -1589,48 +1456,246 @@ Detalhes: \${error.message}\`);
       onChange: (e) => setFiltroData(e.target.value),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Todos os status"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pago" }, "Pago"),
-    /* @__PURE__ */ React.createElement("option", { value: "Em Aberto" }, "Em Aberto")
-  ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, faturamentos.filter((faturamento) => {
-    const matchSearch = !searchTerm || faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = !filtroData || faturamento.status === filtroData;
-    return matchSearch && matchStatus;
-  }).map((faturamento) => /* @__PURE__ */ React.createElement("div", { key: faturamento.id, className: "bg-white rounded-lg shadow p-4 border-l-4 border-blue-500" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, faturamento.tipoQuadra, " - ", faturamento.mesLocacao), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-600" }, "R\$ ", faturamento.valor?.toFixed(2))), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}\` }, faturamento.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Recebido: R\$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Em Aberto: R\$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Data: ", faturamento.data), /* @__PURE__ */ React.createElement("div", null, "Forma: ", faturamento.formaPagamento)), faturamento.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\\xE7ado por: ", faturamento.usuarioResponsavel, faturamento.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\\u2022 ", new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR"))), faturamento.usuarioResponsavel && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500 mb-2 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "Lan\\xE7ado por: ", faturamento.usuarioResponsavel, faturamento.dataLancamento && /* @__PURE__ */ React.createElement("span", { className: "ml-2" }, "\\u2022 ", new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => editarFaturamento(faturamento),
-      className: "flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
-    },
-    "Editar"
-  ), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => excluirFaturamento(faturamento.id),
-      className: "bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
-    },
-    /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  ))))), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "M\\xEAs/Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Recebido"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Em Aberto"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Respons\\xE1vel"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\\xE7\\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, faturamentos.filter((faturamento) => {
-    const matchSearch = !searchTerm || faturamento.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = !filtroData || faturamento.status === filtroData;
-    return matchSearch && matchStatus;
-  }).map((faturamento) => /* @__PURE__ */ React.createElement("tr", { key: faturamento.id, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, faturamento.cliente), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.data))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, faturamento.mesLocacao), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, faturamento.tipoQuadra)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R\$ ", faturamento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium" }, "R\$ ", faturamento.valorRealRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium" }, "R\$ ", faturamento.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${faturamento.status === "Pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}\` }, faturamento.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, faturamento.usuarioResponsavel || "N/A"), faturamento.dataLancamento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-500" }, new Date(faturamento.dataLancamento).toLocaleDateString("pt-BR")), faturamento.ultimoRecebimento && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600" }, "\\xDAltimo receb.: ", faturamento.ultimoRecebimento.usuario)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => editarFaturamento(faturamento),
-      className: "text-blue-600 hover:text-blue-900 mr-3"
-    },
-    /* @__PURE__ */ React.createElement(Edit, { className: "h-4 w-4" })
-  ), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      onClick: () => excluirFaturamento(faturamento.id),
-      className: "text-red-600 hover:text-red-900"
-    },
-    /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  )))))))), recebimentos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Hist\\xF3rico de Recebimentos")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, recebimentos.slice(-10).reverse().map((recebimento) => {
-    const faturamento = faturamentos.find((f) => f.id === recebimento.faturamentoId);
-    return /* @__PURE__ */ React.createElement("div", { key: recebimento.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, faturamento?.cliente || "Cliente n\\xE3o encontrado"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, recebimento.data, " - ", recebimento.formaPagamento), recebimento.usuarioResponsavel && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "por: ", recebimento.usuarioResponsavel)), /* @__PURE__ */ React.createElement("div", { className: "text-right ml-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-green-600" }, "R\$ ", recebimento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Todos os pendentes"),
+    /* @__PURE__ */ React.createElement("option", { value: "Em Aberto" }, "Em Aberto"),
+    /* @__PURE__ */ React.createElement("option", { value: "Parcial" }, "Parciais")
+  ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, (() => {
+    const itensFinanceiros = [];
+    faturamentos.forEach((faturamento) => {
+      const valorEmAberto = faturamento.valorEmAberto || 0;
+      if (valorEmAberto > 0) {
+        itensFinanceiros.push({
+          id: \`fat_\${faturamento.id}\`,
+          tipo: "faturamento",
+          origem: "Faturamento Administrativo",
+          cliente: faturamento.cliente,
+          descricao: \`\${faturamento.tipoQuadra} - \${faturamento.mesLocacao}\`,
+          data: faturamento.data,
+          valor: faturamento.valor,
+          valorRecebido: faturamento.valorRealRecebido || 0,
+          valorEmAberto,
+          formaPagamento: faturamento.formaPagamento,
+          status: "Em Aberto",
+          item: faturamento
+        });
+      }
+    });
+    reservas.forEach((reserva) => {
+      const valorTotal = reserva.valor || 0;
+      const valorPago = reserva.valorPago || 0;
+      const valorEmAberto = Math.max(0, valorTotal - valorPago);
+      if (valorEmAberto > 0) {
+        const cliente = clientes.find((c) => c.id === reserva.clienteId);
+        const quadra = quadras.find((q) => q.id === reserva.quadraId);
+        let status = "Em Aberto";
+        if (valorPago > 0) {
+          status = "Parcial";
+        }
+        itensFinanceiros.push({
+          id: \`res_\${reserva.id}\`,
+          tipo: "reserva",
+          origem: "Reserva de Quadra",
+          cliente: cliente?.nome || "Cliente N/A",
+          descricao: \`\${quadra?.nome} - \${reserva.data} (\${reserva.horaInicio}-\${reserva.horaFim})\`,
+          data: reserva.data,
+          valor: valorTotal,
+          valorRecebido: valorPago,
+          valorEmAberto,
+          formaPagamento: reserva.formaPagamento || "",
+          status,
+          item: reserva
+        });
+      }
+    });
+    const itensFiltrados = itensFinanceiros.filter((item) => {
+      const matchSearch = !searchTerm || item.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = !filtroData || item.status === filtroData;
+      return matchSearch && matchStatus;
+    });
+    return itensFiltrados.map((item) => /* @__PURE__ */ React.createElement("div", { key: item.id, className: \`bg-white rounded-lg shadow p-4 border-l-4 \${item.tipo === "faturamento" ? "border-blue-500" : "border-green-500"}\` }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-1" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, item.cliente), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full font-medium \${item.tipo === "faturamento" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}\` }, item.origem)), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, item.descricao), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-600 font-medium" }, "R\$ ", item.valor?.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "text-right" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${item.status === "Pago" ? "bg-green-100 text-green-800" : item.status === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, item.status))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Recebido: R\$ ", item.valorRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Em Aberto: R\$ ", item.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "Data: ", new Date(item.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("div", null, "Forma: ", item.formaPagamento || "N/A")), /* @__PURE__ */ React.createElement("div", { className: "space-y-2" }, item.valorEmAberto > 0 && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setFormRecebimento({
+            faturamentoId: item.id,
+            data: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+            valor: item.valorEmAberto.toString(),
+            formaPagamento: "",
+            observacoes: ""
+          });
+          setModalType("recebimento");
+          setShowModal(true);
+        },
+        className: "w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 flex items-center justify-center space-x-2"
+      },
+      /* @__PURE__ */ React.createElement(CreditCard, { className: "h-4 w-4" }),
+      /* @__PURE__ */ React.createElement("span", null, "Lan\\xE7ar Recebimento")
+    ), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          if (item.tipo === "faturamento") {
+            editarFaturamento(item.item);
+          } else {
+            editarReserva(item.item);
+          }
+        },
+        className: \`flex-1 text-white px-3 py-2 rounded text-sm \${item.tipo === "faturamento" ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}\`
+      },
+      "Editar"
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          if (item.tipo === "faturamento") {
+            excluirFaturamento(item.item.id);
+          } else {
+            excluirReserva(item.item.id);
+          }
+        },
+        className: "bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
+      },
+      /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
+    )))));
+  })(), (() => {
+    const faturamentosEmAberto = faturamentos.filter((f) => (f.valorEmAberto || 0) > 0);
+    const reservasEmAberto = reservas.filter((r) => {
+      const valorTotal = r.valor || 0;
+      const valorPago = r.valorPago || 0;
+      return Math.max(0, valorTotal - valorPago) > 0;
+    });
+    const totalItensEmAberto = faturamentosEmAberto.length + reservasEmAberto.length;
+    return totalItensEmAberto === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500 bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement(CheckCircle, { className: "h-12 w-12 text-green-500 mx-auto mb-3" }), /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-2" }, "Nenhuma Pend\\xEAncia Financeira!"), /* @__PURE__ */ React.createElement("p", { className: "text-sm" }, searchTerm ? "Nenhum resultado encontrado para sua busca." : "Todos os faturamentos e reservas est\\xE3o com pagamentos em dia."));
+  })()), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Origem/Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Descri\\xE7\\xE3o"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Recebido"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Em Aberto"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\\xE7\\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, (() => {
+    const itensFinanceiros = [];
+    faturamentos.forEach((faturamento) => {
+      const valorEmAberto = faturamento.valorEmAberto || 0;
+      if (valorEmAberto > 0) {
+        itensFinanceiros.push({
+          id: \`fat_\${faturamento.id}\`,
+          tipo: "faturamento",
+          origem: "Faturamento Administrativo",
+          cliente: faturamento.cliente,
+          descricao: \`\${faturamento.tipoQuadra} - \${faturamento.mesLocacao}\`,
+          data: faturamento.data,
+          valor: faturamento.valor,
+          valorRecebido: faturamento.valorRealRecebido || 0,
+          valorEmAberto,
+          formaPagamento: faturamento.formaPagamento,
+          status: "Em Aberto",
+          item: faturamento
+        });
+      }
+    });
+    reservas.forEach((reserva) => {
+      const valorTotal = reserva.valor || 0;
+      const valorPago = reserva.valorPago || 0;
+      const valorEmAberto = Math.max(0, valorTotal - valorPago);
+      if (valorEmAberto > 0) {
+        const cliente = clientes.find((c) => c.id === reserva.clienteId);
+        const quadra = quadras.find((q) => q.id === reserva.quadraId);
+        let status = "Em Aberto";
+        if (valorPago > 0) {
+          status = "Parcial";
+        }
+        itensFinanceiros.push({
+          id: \`res_\${reserva.id}\`,
+          tipo: "reserva",
+          origem: "Reserva de Quadra",
+          cliente: cliente?.nome || "Cliente N/A",
+          descricao: \`\${quadra?.nome} - \${reserva.data} (\${reserva.horaInicio}-\${reserva.horaFim})\`,
+          data: reserva.data,
+          valor: valorTotal,
+          valorRecebido: valorPago,
+          valorEmAberto,
+          formaPagamento: reserva.formaPagamento || "",
+          status,
+          item: reserva
+        });
+      }
+    });
+    const itensFiltrados = itensFinanceiros.filter((item) => {
+      const matchSearch = !searchTerm || item.cliente?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = !filtroData || item.status === filtroData;
+      return matchSearch && matchStatus;
+    });
+    itensFiltrados.sort((a, b) => new Date(b.data) - new Date(a.data));
+    const resultados = itensFiltrados.map((item) => /* @__PURE__ */ React.createElement("tr", { key: item.id, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("div", { className: \`w-3 h-3 rounded-full mr-3 \${item.tipo === "faturamento" ? "bg-blue-500" : "bg-green-500"}\` }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, item.cliente), /* @__PURE__ */ React.createElement("div", { className: \`text-xs font-medium \${item.tipo === "faturamento" ? "text-blue-600" : "text-green-600"}\` }, item.origem)))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-900" }, item.descricao), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-500" }, new Date(item.data).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R\$ ", item.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium" }, "R\$ ", item.valorRecebido?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium" }, "R\$ ", item.valorEmAberto?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full \${item.status === "Pago" ? "bg-green-100 text-green-800" : item.status === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, item.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, item.valorEmAberto > 0 && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setFormRecebimento({
+            faturamentoId: item.id,
+            data: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+            valor: item.valorEmAberto.toString(),
+            formaPagamento: "",
+            observacoes: ""
+          });
+          setModalType("recebimento");
+          setShowModal(true);
+        },
+        className: "bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 flex items-center space-x-1",
+        title: "Lan\\xE7ar Recebimento"
+      },
+      /* @__PURE__ */ React.createElement(CreditCard, { className: "h-3 w-3" }),
+      /* @__PURE__ */ React.createElement("span", null, "Receber")
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          if (item.tipo === "faturamento") {
+            editarFaturamento(item.item);
+          } else {
+            editarReserva(item.item);
+          }
+        },
+        className: \`\${item.tipo === "faturamento" ? "text-blue-600 hover:text-blue-900" : "text-green-600 hover:text-green-900"}\`,
+        title: "Editar"
+      },
+      /* @__PURE__ */ React.createElement(Edit, { className: "h-4 w-4" })
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          if (item.tipo === "faturamento") {
+            excluirFaturamento(item.item.id);
+          } else {
+            excluirReserva(item.item.id);
+          }
+        },
+        className: "text-red-600 hover:text-red-900",
+        title: "Excluir"
+      },
+      /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
+    )))));
+    return resultados.length > 0 ? resultados : /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("td", { colSpan: "7", className: "px-6 py-12 text-center" }, /* @__PURE__ */ React.createElement(CheckCircle, { className: "h-12 w-12 text-green-500 mx-auto mb-3" }), /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-2" }, "Nenhuma Pend\\xEAncia Financeira!"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-500" }, searchTerm ? "Nenhum resultado encontrado para sua busca." : "Todos os faturamentos e reservas est\\xE3o com pagamentos em dia.")));
+  })())))), recebimentos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6 border-b" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, "Hist\\xF3rico de Recebimentos")), /* @__PURE__ */ React.createElement("div", { className: "p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, recebimentos.slice(-10).reverse().map((recebimento) => {
+    let nomeCliente, descricaoItem, tipoOrigem;
+    if (recebimento.tipoItem === "faturamento" || recebimento.faturamentoId) {
+      const faturamento = faturamentos.find((f) => f.id === (recebimento.faturamentoId || parseInt(recebimento.faturamentoId)));
+      nomeCliente = faturamento?.cliente || "Cliente n\\xE3o encontrado";
+      descricaoItem = faturamento ? \`\${faturamento.tipoQuadra} - \${faturamento.mesLocacao}\` : "Faturamento exclu\\xEDdo";
+      tipoOrigem = "Faturamento";
+    } else if (recebimento.tipoItem === "reserva" || recebimento.reservaId) {
+      const reserva = reservas.find((r) => r.id === recebimento.reservaId);
+      if (reserva) {
+        const cliente = clientes.find((c) => c.id === reserva.clienteId);
+        const quadra = quadras.find((q) => q.id === reserva.quadraId);
+        nomeCliente = cliente?.nome || "Cliente n\\xE3o encontrado";
+        descricaoItem = \`\${quadra?.nome} - \${reserva.data} (\${reserva.horaInicio}-\${reserva.horaFim})\`;
+        tipoOrigem = "Reserva";
+      } else {
+        nomeCliente = "Reserva n\\xE3o encontrada";
+        descricaoItem = "Reserva exclu\\xEDda";
+        tipoOrigem = "Reserva";
+      }
+    } else {
+      const faturamento = faturamentos.find((f) => f.id === recebimento.faturamentoId);
+      nomeCliente = faturamento?.cliente || "Cliente n\\xE3o encontrado";
+      descricaoItem = faturamento ? \`\${faturamento.tipoQuadra} - \${faturamento.mesLocacao}\` : "Item exclu\\xEDdo";
+      tipoOrigem = "Faturamento";
+    }
+    return /* @__PURE__ */ React.createElement("div", { key: recebimento.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, nomeCliente), /* @__PURE__ */ React.createElement("span", { className: \`px-2 py-1 text-xs rounded-full font-medium \${tipoOrigem === "Faturamento" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}\` }, tipoOrigem)), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, descricaoItem), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, recebimento.data, " - ", recebimento.formaPagamento), recebimento.usuarioResponsavel && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 flex items-center" }, /* @__PURE__ */ React.createElement(UserCheck, { className: "h-3 w-3 mr-1" }), "por: ", recebimento.usuarioResponsavel)), /* @__PURE__ */ React.createElement("div", { className: "text-right ml-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium text-green-600" }, "R\$ ", recebimento.valor?.toFixed(2)), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => excluirRecebimento(recebimento.id),
@@ -1921,7 +1986,7 @@ Detalhes: \${error.message}\`);
           const reservasQuadra = reservasPeriodo.filter((r) => r.quadraId === quadra.id);
           const receitaQuadra = reservasQuadra.reduce((acc, r) => acc + (r.valor || 0), 0);
           const recebidoQuadra = reservasQuadra.reduce((acc, r) => acc + (r.valorPago || 0), 0);
-          return /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-800 mb-3" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-4 mb-4 text-sm" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Reservas:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg" }, reservasQuadra.length)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-blue-600" }, "R\$ ", receitaQuadra.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-green-600" }, "R\$ ", recebidoQuadra.toFixed(2)))), reservasQuadra.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto print:overflow-visible" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs print:text-xs print:w-full" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Hor\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Pago"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Status"))), /* @__PURE__ */ React.createElement("tbody", null, reservasQuadra.sort((a, b) => a.data.localeCompare(b.data)).map((reserva, idx) => {
+          return /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "border rounded-lg p-4" }, /* @__PURE__ */ React.createElement("h4", { className: "text-base font-semibold text-gray-808 mb-3" }, quadra.nome, " - ", quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-3 gap-4 mb-4 text-sm" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Reservas:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg" }, reservasQuadra.length)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Faturado:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-blue-600" }, "R\$ ", receitaQuadra.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-gray-600" }, "Recebido:"), /* @__PURE__ */ React.createElement("p", { className: "font-bold text-lg text-green-600" }, "R\$ ", recebidoQuadra.toFixed(2)))), reservasQuadra.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto print:overflow-visible" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full border-collapse border border-gray-300 text-xs print:text-xs print:w-full" }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Data"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Hor\\xE1rio"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Pago"), /* @__PURE__ */ React.createElement("th", { className: "border border-gray-300 px-2 py-1 text-left" }, "Status"))), /* @__PURE__ */ React.createElement("tbody", null, reservasQuadra.sort((a, b) => a.data.localeCompare(b.data)).map((reserva, idx) => {
             const cliente = clientes.find((c) => c.id === reserva.clienteId);
             return /* @__PURE__ */ React.createElement("tr", { key: idx, className: idx % 2 === 0 ? "bg-white" : "bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, new Date(reserva.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, cliente?.nome || "N/A"), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-blue-600 font-medium" }, "R\$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1 text-green-600 font-medium" }, "R\$ ", (reserva.valorPago || 0).toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "border border-gray-300 px-2 py-1" }, /* @__PURE__ */ React.createElement("span", { className: \`px-1 py-0.5 text-xs rounded \${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}\` }, reserva.statusPagamento || "Pendente")));
           })))));
@@ -2445,8 +2510,22 @@ Detalhes: \${error.message}\`);
       onChange: (e) => setFormRecebimento({ ...formRecebimento, faturamentoId: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione o Faturamento"),
-    faturamentos.filter((f) => f.valorEmAberto > 0).map((faturamento) => /* @__PURE__ */ React.createElement("option", { key: faturamento.id, value: faturamento.id }, faturamento.cliente, " - ", faturamento.mesLocacao, " (R\$ ", faturamento.valorEmAberto?.toFixed(2), " em aberto)"))
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione o Item Financeiro"),
+    faturamentos.filter((f) => f.valorEmAberto > 0).map((faturamento) => /* @__PURE__ */ React.createElement("option", { key: \`fat_\${faturamento.id}\`, value: \`fat_\${faturamento.id}\` }, "[FATURAMENTO] ", faturamento.cliente, " - ", faturamento.mesLocacao, " (R\$ ", faturamento.valorEmAberto?.toFixed(2), " em aberto)")),
+    reservas.filter((r) => {
+      const valorTotal = r.valor || 0;
+      const valorPago = r.valorPago || 0;
+      const valorEmAberto = Math.max(0, valorTotal - valorPago);
+      return valorEmAberto > 0;
+    }).map((reserva) => {
+      const cliente = clientes.find((c) => c.id === reserva.clienteId);
+      const quadra = quadras.find((q) => q.id === reserva.quadraId);
+      const valorTotal = reserva.valor || 0;
+      const valorPago = reserva.valorPago || 0;
+      const valorEmAberto = Math.max(0, valorTotal - valorPago);
+      const statusStr = valorPago === 0 ? "EM ABERTO" : "PARCIAL";
+      return /* @__PURE__ */ React.createElement("option", { key: \`res_\${reserva.id}\`, value: \`res_\${reserva.id}\` }, "[RESERVA-", statusStr, "] ", cliente?.nome, " - ", quadra?.nome, " ", new Date(reserva.data).toLocaleDateString("pt-BR"), " (R\$ ", valorEmAberto.toFixed(2), " em aberto)");
+    })
   ), /* @__PURE__ */ React.createElement(
     "input",
     {
