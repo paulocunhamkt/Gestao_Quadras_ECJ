@@ -9,14 +9,33 @@ var QuadraManagementSystem = () => {
   const [loginForm, setLoginForm] = useState({ usuario: "", senha: "" });
   const [loginError, setLoginError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [usuariosAdmin, setUsuariosAdmin] = useStoredState("usuariosAdmin", [
     { id: 1, usuario: "admin", senha: "jurema2025", nome: "Administrador", cargo: "Administrador Geral" },
     { id: 2, usuario: "gerente", senha: "gestao123", nome: "Gerente", cargo: "Gerente de Opera\xE7\xF5es" },
     { id: 3, usuario: "secretario", senha: "quadras456", nome: "Secret\xE1rio", cargo: "Secret\xE1rio do Clube" }
   ]);
   const [quadras, setQuadras] = useStoredState("quadras", [
-    { id: 1, nome: "Campo de Futebol 1", modalidade: "Campo de Futebol", valorHora: 100, ativa: true },
-    { id: 2, nome: "Quadra de Futsal 1", modalidade: "Quadra de Futsal", valorHora: 80, ativa: true }
+    {
+      id: 1,
+      nome: "Campo de Futebol 1",
+      modalidade: "Campo de Futebol",
+      valorHora: 100,
+      ativa: true,
+      usarTabelaDiferenciada: false,
+      valorManha: 80,
+      valorNoite: 100
+    },
+    {
+      id: 2,
+      nome: "Quadra de Futsal 1",
+      modalidade: "Quadra de Futsal",
+      valorHora: 80,
+      ativa: true,
+      usarTabelaDiferenciada: false,
+      valorManha: 60,
+      valorNoite: 80
+    }
   ]);
   const [clientes, setClientes] = useStoredState("clientes", [
     { id: 1, nome: "Jo\xE3o Silva", telefone: "(11) 99999-9999", email: "joao@email.com" },
@@ -35,11 +54,22 @@ var QuadraManagementSystem = () => {
   const [quadraImpressao, setQuadraImpressao] = useState("");
   const [semanaImpressao, setSemanaImpressao] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [clientesExpandidos, setClientesExpandidos] = useState({});
   const [tipoRelatorio, setTipoRelatorio] = useState("financeiro-mensal");
   const [dataRelatorio, setDataRelatorio] = useState((/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
   const [periodoRelatorio, setPeriodoRelatorio] = useState("mensal");
   const [anoRelatorio, setAnoRelatorio] = useState((/* @__PURE__ */ new Date()).getFullYear().toString());
-  const [formQuadra, setFormQuadra] = useState({ nome: "", modalidade: "", valorHora: "", ativa: true });
+  const [formQuadra, setFormQuadra] = useState({
+    nome: "",
+    modalidade: "",
+    valorHora: "",
+    ativa: true,
+    usarTabelaDiferenciada: false,
+    valorManha: "",
+    // 06:00 - 17:59
+    valorNoite: ""
+    // 18:00 - 22:59
+  });
   const [formCliente, setFormCliente] = useState({ nome: "", telefone: "", email: "" });
   const [formReserva, setFormReserva] = useState({
     quadraId: "",
@@ -90,17 +120,38 @@ var QuadraManagementSystem = () => {
     formaPagamento: "",
     observacoes: ""
   });
+  const calcularValorPorHorario = (quadra, horaInicio) => {
+    if (!quadra.usarTabelaDiferenciada) {
+      return parseFloat(quadra.valorHora) || 0;
+    }
+    const hora = parseInt(horaInicio.split(":")[0]);
+    if (hora >= 6 && hora < 18) {
+      return parseFloat(quadra.valorManha) || parseFloat(quadra.valorHora) || 0;
+    } else if (hora >= 18 && hora < 23) {
+      return parseFloat(quadra.valorNoite) || parseFloat(quadra.valorHora) || 0;
+    } else {
+      return parseFloat(quadra.valorHora) || parseFloat(quadra.valorManha) || 0;
+    }
+  };
   const adicionarQuadra = () => {
     if (editingItem) {
       setQuadras(quadras.map(
-        (q) => q.id === editingItem.id ? { ...formQuadra, id: editingItem.id, valorHora: parseFloat(formQuadra.valorHora) } : q
+        (q) => q.id === editingItem.id ? {
+          ...formQuadra,
+          id: editingItem.id,
+          valorHora: parseFloat(formQuadra.valorHora) || 0,
+          valorManha: parseFloat(formQuadra.valorManha) || 0,
+          valorNoite: parseFloat(formQuadra.valorNoite) || 0
+        } : q
       ));
       registrarAtividade("QUADRA_EDITADA", `Quadra "${formQuadra.nome}" editada`);
     } else {
       const novaQuadra = {
         id: Date.now(),
         ...formQuadra,
-        valorHora: parseFloat(formQuadra.valorHora)
+        valorHora: parseFloat(formQuadra.valorHora) || 0,
+        valorManha: parseFloat(formQuadra.valorManha) || 0,
+        valorNoite: parseFloat(formQuadra.valorNoite) || 0
       };
       setQuadras([...quadras, novaQuadra]);
       registrarAtividade("QUADRA_CRIADA", `Nova quadra "${formQuadra.nome}" criada`);
@@ -113,7 +164,10 @@ var QuadraManagementSystem = () => {
       nome: quadra.nome,
       modalidade: quadra.modalidade,
       valorHora: quadra.valorHora.toString(),
-      ativa: quadra.ativa
+      ativa: quadra.ativa,
+      usarTabelaDiferenciada: quadra.usarTabelaDiferenciada || false,
+      valorManha: (quadra.valorManha || "").toString(),
+      valorNoite: (quadra.valorNoite || "").toString()
     });
     setModalType("quadra");
     setShowModal(true);
@@ -329,12 +383,24 @@ var QuadraManagementSystem = () => {
     const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
     const minutos = (horaFim - horaInicio) / (1e3 * 60);
     const horas = minutos / 60;
-    const valorSessao = horas * quadra.valorHora;
+    let valorPorHora;
+    if (quadra.usarTabelaDiferenciada) {
+      const hora = parseInt(formReserva.horaInicio.split(":")[0]);
+      if (hora >= 6 && hora < 18) {
+        valorPorHora = parseFloat(quadra.valorManha) || 0;
+      } else if (hora >= 18 && hora < 23) {
+        valorPorHora = parseFloat(quadra.valorNoite) || 0;
+      } else {
+        valorPorHora = parseFloat(quadra.valorHora) || 0;
+      }
+    } else {
+      valorPorHora = parseFloat(quadra.valorHora) || 0;
+    }
+    const valorPorSessao = horas * valorPorHora;
     const sessoesPorSemana = formReserva.diasSemana.length;
     const sessoesPorMes = Math.round(sessoesPorSemana * 4.33);
-    const valorMensal = valorSessao * sessoesPorMes;
-    const valorComDesconto = valorMensal * 0.9;
-    return valorComDesconto;
+    const valorMensal = valorPorSessao * sessoesPorMes;
+    return valorMensal;
   };
   const calcularParcelas = (valorTotal, numeroParcelas) => {
     if (numeroParcelas <= 0) return 0;
@@ -343,7 +409,6 @@ var QuadraManagementSystem = () => {
   const gerarReservasMensais = (dadosReserva) => {
     const reservasGeradas = [];
     const [ano, mes] = dadosReserva.mesReferencia.split("-");
-    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
     const diasSemanaMap = {
       "domingo": 0,
       "segunda": 1,
@@ -353,8 +418,39 @@ var QuadraManagementSystem = () => {
       "sexta": 5,
       "sabado": 6
     };
+    let primeiraDataDisponivel = null;
+    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+    const hoje2 = /* @__PURE__ */ new Date();
+    hoje2.setHours(0, 0, 0, 0);
     for (let dia = 1; dia <= diasDoMes; dia++) {
-      const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const dataAtual2 = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const diaSemanaAtual = dataAtual2.getDay();
+      if (dataAtual2 < hoje2) {
+        continue;
+      }
+      const diaCoincide = dadosReserva.diasSemana.some(
+        (diaSelecionado) => diasSemanaMap[diaSelecionado] === diaSemanaAtual
+      );
+      if (diaCoincide) {
+        const dataFormatada = dataAtual2.toISOString().split("T")[0];
+        const conflito = reservas.some(
+          (r) => r.data === dataFormatada && r.quadraId === dadosReserva.quadraId && (r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio)
+        );
+        if (!conflito) {
+          primeiraDataDisponivel = dataAtual2;
+          break;
+        }
+      }
+    }
+    if (!primeiraDataDisponivel) {
+      throw new Error(`N\xE3o foi encontrada nenhuma data dispon\xEDvel no m\xEAs selecionado (${new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}) para os dias da semana escolhidos: ${dadosReserva.diasSemana.join(", ")}.`);
+    }
+    const dataFinal = new Date(primeiraDataDisponivel);
+    dataFinal.setDate(dataFinal.getDate() + 29);
+    const periodoMensal = `${primeiraDataDisponivel.toLocaleDateString("pt-BR")} a ${dataFinal.toLocaleDateString("pt-BR")}`;
+    let dataAtual = new Date(primeiraDataDisponivel);
+    const dataLimite = new Date(dataFinal);
+    while (dataAtual <= dataLimite) {
       const diaSemanaAtual = dataAtual.getDay();
       const diaCoincide = dadosReserva.diasSemana.some(
         (diaSelecionado) => diasSemanaMap[diaSelecionado] === diaSemanaAtual
@@ -362,7 +458,8 @@ var QuadraManagementSystem = () => {
       if (diaCoincide) {
         const dataFormatada = dataAtual.toISOString().split("T")[0];
         const conflito = reservas.some(
-          (r) => r.data === dataFormatada && r.quadraId === dadosReserva.quadraId && (r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio)
+          (r) => r.data === dataFormatada && r.quadraId === dadosReserva.quadraId && (r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio) && (!editingItem || r.id !== editingItem.id)
+          // Excluir reserva sendo editada
         );
         if (!conflito) {
           reservasGeradas.push({
@@ -373,18 +470,22 @@ var QuadraManagementSystem = () => {
             horaInicio: dadosReserva.horaInicio,
             horaFim: dadosReserva.horaFim,
             valor: dadosReserva.valorPorSessao,
-            status: dadosReserva.status,
+            status: dadosReserva.status || "Confirmada",
             statusPagamento: "Pendente",
             valorPago: 0,
             tipoReserva: "mensal",
             mesReferencia: dadosReserva.mesReferencia,
+            periodoReal: periodoMensal,
+            primeiraData: primeiraDataDisponivel.toISOString().split("T")[0],
+            ultimaData: dataFinal.toISOString().split("T")[0],
             reservaMensalId: dadosReserva.reservaMensalId,
-            observacoes: `Reserva mensal - ${dadosReserva.mesReferencia}. ${dadosReserva.observacoes || ""}`,
+            observacoes: `Reserva mensal (${periodoMensal}) - Dias: ${dadosReserva.diasSemana.join(", ")} - ${dadosReserva.observacoes || ""}`,
             usuarioResponsavel: usuarioLogado?.nome || "Sistema",
             dataLancamento: (/* @__PURE__ */ new Date()).toISOString()
           });
         }
       }
+      dataAtual.setDate(dataAtual.getDate() + 1);
     }
     return reservasGeradas;
   };
@@ -441,7 +542,13 @@ var QuadraManagementSystem = () => {
     const horaFim = /* @__PURE__ */ new Date(`${formReserva.data}T${formReserva.horaFim}`);
     const minutos = (horaFim - horaInicio) / (1e3 * 60);
     const horas = minutos / 60;
-    const valorCalculado = horas * quadra.valorHora;
+    let valorCalculado;
+    if (quadra.usarTabelaDiferenciada) {
+      const valorPorHora = calcularValorPorHorario(quadra, formReserva.horaInicio);
+      valorCalculado = horas * valorPorHora;
+    } else {
+      valorCalculado = horas * (parseFloat(quadra.valorHora) || 0);
+    }
     if (editingItem) {
       setReservas(reservas.map(
         (r) => r.id === editingItem.id ? {
@@ -460,7 +567,25 @@ var QuadraManagementSystem = () => {
       if (formReserva.tipoReserva === "mensal") {
         const valorMensal = calcularValorMensal();
         const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
-        const valorPorSessao = valorMensal / (formReserva.diasSemana.length * 4.33);
+        const quadra2 = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
+        const horaInicio2 = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
+        const horaFim2 = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
+        const minutos2 = (horaFim2 - horaInicio2) / (1e3 * 60);
+        const horas2 = minutos2 / 60;
+        let valorPorHora;
+        if (quadra2.usarTabelaDiferenciada) {
+          const hora = parseInt(formReserva.horaInicio.split(":")[0]);
+          if (hora >= 6 && hora < 18) {
+            valorPorHora = parseFloat(quadra2.valorManha) || 0;
+          } else if (hora >= 18 && hora < 23) {
+            valorPorHora = parseFloat(quadra2.valorNoite) || 0;
+          } else {
+            valorPorHora = parseFloat(quadra2.valorHora) || 0;
+          }
+        } else {
+          valorPorHora = parseFloat(quadra2.valorHora) || 0;
+        }
+        const valorPorSessao = horas2 * valorPorHora;
         const reservaMensalId = `mensal_${Date.now()}`;
         const faturamentoMensal = {
           id: Date.now(),
@@ -468,7 +593,7 @@ var QuadraManagementSystem = () => {
           cliente: clientes.find((c) => c.id === parseInt(formReserva.clienteId))?.nome || "Cliente",
           mesLocacao: formReserva.mesReferencia,
           hora: `${formReserva.horaInicio}-${formReserva.horaFim}`,
-          tipoQuadra: quadra.nome,
+          tipoQuadra: quadra2.nome,
           tipoLocacao: "Mensal",
           reciboPagamento: `MENSAL-${reservaMensalId}`,
           dataLocacao: formReserva.mesReferencia,
@@ -493,24 +618,60 @@ var QuadraManagementSystem = () => {
           valorPorSessao,
           reservaMensalId
         });
-        setFaturamentos([...faturamentos, faturamentoMensal]);
+        if (reservasIndividuais.length === 0) {
+          alert("\u274C Erro: N\xE3o foi poss\xEDvel gerar reservas!\n\nVerifique se h\xE1 disponibilidade nos dias selecionados no per\xEDodo escolhido.");
+          return;
+        }
+        const primeiraReserva = reservasIndividuais[0];
+        const periodoReal = primeiraReserva.periodoReal;
+        const faturamentoAtualizado = {
+          ...faturamentoMensal,
+          mesLocacao: periodoReal,
+          dataLocacao: primeiraReserva.primeiraData,
+          observacoes: `Reserva mensal (${periodoReal}) - ${formReserva.diasSemana.join(", ")}. Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}. ${formReserva.observacoesMensal || ""}`
+        };
+        setFaturamentos([...faturamentos, faturamentoAtualizado]);
         setReservas([...reservas, ...reservasIndividuais]);
         registrarAtividade(
           "RESERVA_MENSAL_CRIADA",
-          `Nova reserva mensal - ${quadra.nome} - ${formReserva.mesReferencia} - ${reservasIndividuais.length} sess\xF5es geradas`
+          `Nova reserva mensal - ${quadra2.nome} - Per\xEDodo: ${periodoReal} - ${reservasIndividuais.length} sess\xF5es geradas`
         );
+        const primeiraReservaData = new Date(primeiraReserva.primeiraData);
+        const ultimaReservaData = new Date(primeiraReserva.ultimaData);
+        const diasCorridos = Math.ceil((ultimaReservaData - primeiraReservaData) / (1e3 * 60 * 60 * 24)) + 1;
+        const mesReferenciaOriginal = new Date(parseInt(formReserva.mesReferencia.split("-")[0]), parseInt(formReserva.mesReferencia.split("-")[1]) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
         alert(
-          `\u2705 Reserva mensal criada com sucesso!
+          `\u2705 RESERVA MENSAL CRIADA COM SUCESSO!
 
-\u{1F4CA} Resumo:
-\u2022 Quadra: ${quadra.nome}
-\u2022 M\xEAs: ${formReserva.mesReferencia}
-\u2022 Dias: ${formReserva.diasSemana.join(", ")}
+\u{1F3AF} C\xC1LCULO APLICADO:
+\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+
+\u{1F4CB} DADOS DA LOCA\xC7\xC3O:
+\u2022 Quadra: ${quadra2.nome}
+\u2022 Cliente: ${clientes.find((c) => c.id === parseInt(formReserva.clienteId))?.nome}
+\u2022 Dias da semana: ${formReserva.diasSemana.join(", ")}
 \u2022 Hor\xE1rio: ${formReserva.horaInicio} - ${formReserva.horaFim}
-\u2022 Valor total: R$ ${valorMensal.toFixed(2)}
-\u2022 Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}
-\u2022 Sess\xF5es geradas: ${reservasIndividuais.length}
-\u2022 Desconto aplicado: 10%`
+
+\u{1F4C5} PER\xCDODO CALCULADO:
+\u2022 M\xEAs de refer\xEAncia: ${mesReferenciaOriginal}
+\u2022 Per\xEDodo real: ${periodoReal}
+\u2022 Total de dias corridos: ${diasCorridos} dias
+\u2022 Sess\xF5es geradas: ${reservasIndividuais.length} sess\xF5es
+
+\u{1F4B0} FINANCEIRO (SEM DESCONTO):
+\u2022 Valor total mensal: R$ ${valorMensal.toFixed(2)}
+\u2022 Forma de pagamento: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}
+\u2022 Valor pago na reserva: R$ ${(parseFloat(formReserva.valorPago) || 0).toFixed(2)}
+\u2022 Valor por hora: R$ ${quadra2.usarTabelaDiferenciada ? parseInt(formReserva.horaInicio.split(":")[0]) >= 18 ? quadra2.valorNoite : quadra2.valorManha : quadra2.valorHora}
+
+\u{1F504} SISTEMA INTELIGENTE:
+\u2022 \u2713 Primeira data dispon\xEDvel localizada automaticamente
+\u2022 \u2713 Per\xEDodo de 30 dias corridos garantido
+\u2022 \u2713 Conflitos de hor\xE1rio verificados
+\u2022 \u2713 Todas as reservas validadas
+\u2022 \u2713 Valores aplicados conforme tabela de pre\xE7os
+
+\u{1F4DD} Todas as informa\xE7\xF5es foram registradas no sistema!`
         );
       } else {
         const novaReserva = {
@@ -630,6 +791,7 @@ var QuadraManagementSystem = () => {
     setShowModal(false);
     setModalType("");
     setEditingItem(null);
+    setShowAdminPassword(false);
     setFormQuadra({ nome: "", modalidade: "", valorHora: "", ativa: true });
     setFormCliente({ nome: "", telefone: "", email: "" });
     setFormReserva({
@@ -861,6 +1023,770 @@ Detalhes: ${error.message}`);
       }
     }).filter((backup) => backup !== null).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
+  const toggleClienteExpandido = (clienteId) => {
+    setClientesExpandidos((prev) => ({
+      ...prev,
+      [clienteId]: !prev[clienteId]
+    }));
+  };
+  const limparDadosFinanceiros = () => {
+    const confirmacao = confirm(
+      "\u26A0\uFE0F ATEN\xC7\xC3O: LIMPEZA TOTAL DOS DADOS FINANCEIROS\n\nEsta opera\xE7\xE3o ir\xE1 remover PERMANENTEMENTE:\n\n\u2022 Todas as reservas cadastradas\n\u2022 Todos os faturamentos administrativos\n\u2022 Todos os recebimentos registrados\n\u2022 Hist\xF3rico completo de receitas\n\n\u274C ESTA A\xC7\xC3O N\xC3O PODE SER DESFEITA!\n\nDeseja prosseguir com a limpeza total?"
+    );
+    if (confirmacao) {
+      const segundaConfirmacao = confirm(
+        '\u{1F534} CONFIRMA\xC7\xC3O FINAL\n\nVoc\xEA tem certeza ABSOLUTA que deseja apagar todos os dados financeiros?\n\nDigite "CONFIRMAR" mentalmente e clique em OK para prosseguir.\n\nEsta \xE9 sua \xFAltima chance de cancelar!'
+      );
+      if (segundaConfirmacao) {
+        setReservas([]);
+        setFaturamentos([]);
+        setRecebimentos([]);
+        registrarAtividade("LIMPEZA_DADOS_FINANCEIROS", "Todos os dados financeiros foram removidos pelo usu\xE1rio");
+        alert(
+          "\u2705 LIMPEZA CONCLU\xCDDA COM SUCESSO!\n\n\u{1F5D1}\uFE0F Dados removidos:\n\u2022 Reservas: ZERADAS\n\u2022 Faturamentos: ZERADOS\n\u2022 Recebimentos: ZERADOS\n\u2022 Receita Total: R$ 0,00\n\u2022 Valores Recebidos: R$ 0,00\n\n\u{1F4DD} A opera\xE7\xE3o foi registrada nos logs do sistema.\n\u{1F4BE} Recomenda-se fazer um backup antes de inserir novos dados."
+        );
+      }
+    }
+  };
+  const gerarDadosMensaisPainel = () => {
+    const dataBase = new Date(dataRelatorio);
+    const ano = dataBase.getFullYear();
+    const mes = dataBase.getMonth();
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+    const diasDoMes = [];
+    for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
+      diasDoMes.push(new Date(d));
+    }
+    const quadrasParaExportar = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+    const dadosExportacao = {
+      periodo: `${primeiroDia.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase()}`,
+      dataGeracao: (/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR"),
+      quadras: quadrasParaExportar.map((quadra) => {
+        const reservasMes = reservas.filter((r) => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && dataReserva >= primeiroDia && dataReserva <= ultimoDia;
+        });
+        const totalReservas = reservasMes.length;
+        const reservasConfirmadas = reservasMes.filter((r) => r.status === "Confirmada").length;
+        const receitaTotal = reservasMes.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const receitaPaga = reservasMes.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+        const diasComReservas = diasDoMes.map((dia) => {
+          const dataStr = dia.toISOString().split("T")[0];
+          const reservasDoDia = reservasMes.filter((r) => r.data === dataStr);
+          return {
+            data: dia.toLocaleDateString("pt-BR"),
+            diaSemana: dia.toLocaleDateString("pt-BR", { weekday: "long" }),
+            totalReservas: reservasDoDia.length,
+            reservas: reservasDoDia.map((reserva) => {
+              const cliente = clientes.find((c) => c.id === reserva.clienteId);
+              return {
+                horario: `${reserva.horaInicio} - ${reserva.horaFim}`,
+                cliente: cliente?.nome || "N/A",
+                valor: reserva.valor || 0,
+                status: reserva.status,
+                statusPagamento: reserva.statusPagamento || "Pendente",
+                valorPago: reserva.valorPago || 0
+              };
+            })
+          };
+        });
+        return {
+          id: quadra.id,
+          nome: quadra.nome,
+          modalidade: quadra.modalidade,
+          valorHora: quadra.valorHora,
+          usarTabelaDiferenciada: quadra.usarTabelaDiferenciada,
+          valorManha: quadra.valorManha,
+          valorNoite: quadra.valorNoite,
+          estatisticas: {
+            totalReservas,
+            reservasConfirmadas,
+            receitaTotal,
+            receitaPaga,
+            taxaOcupacao: (totalReservas / (diasDoMes.length * 17) * 100).toFixed(1)
+            // 17 horários possíveis por dia
+          },
+          dias: diasComReservas
+        };
+      })
+    };
+    return dadosExportacao;
+  };
+  const gerarExportacaoPainelPDF = () => {
+    try {
+      const dados = gerarDadosMensaisPainel();
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Painel Visual - ${dados.periodo}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+            .logo { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 10px; }
+            .title { font-size: 18px; font-weight: bold; color: #2563eb; margin: 5px 0; }
+            .subtitle { font-size: 12px; color: #666; margin: 3px 0; }
+            .quadra-section { margin-bottom: 25px; page-break-inside: avoid; }
+            .quadra-header { background: #f3f4f6; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+            .quadra-name { font-size: 14px; font-weight: bold; color: #1f2937; }
+            .quadra-info { font-size: 10px; color: #6b7280; margin-top: 5px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
+            .stat-box { background: #f8fafc; padding: 8px; border-radius: 4px; text-align: center; border-left: 3px solid #2563eb; }
+            .stat-value { font-size: 16px; font-weight: bold; color: #2563eb; }
+            .stat-label { font-size: 9px; color: #6b7280; margin-top: 2px; }
+            .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin: 10px 0; }
+            .day-header { background: #2563eb; color: white; padding: 5px; text-align: center; font-weight: bold; font-size: 8px; }
+            .day-cell { border: 1px solid #e5e7eb; min-height: 60px; padding: 3px; position: relative; font-size: 8px; }
+            .day-number { font-weight: bold; color: #1f2937; }
+            .day-name { color: #6b7280; font-size: 7px; }
+            .reserva-item { background: #dbeafe; margin: 1px 0; padding: 1px 2px; border-radius: 2px; font-size: 7px; }
+            .reserva-confirmada { background: #dcfce7; }
+            .reserva-pendente { background: #fef3c7; }
+            .reserva-cancelada { background: #fee2e2; }
+            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 8px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">ESPORTE CLUBE JUREMA</div>
+            <div class="subtitle">Painel Visual Mensal - ${dados.periodo}</div>
+            <div class="subtitle">Gerado em: ${dados.dataGeracao} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      dados.quadras.forEach((quadra) => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="quadra-info">
+                Valores: ${quadra.usarTabelaDiferenciada ? `\u{1F305} R$ ${quadra.valorManha}/h \u2022 \u{1F319} R$ ${quadra.valorNoite}/h` : `R$ ${quadra.valorHora}/h`}
+              </div>
+            </div>
+            
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.totalReservas}</div>
+                <div class="stat-label">Total Reservas</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.reservasConfirmadas}</div>
+                <div class="stat-label">Confirmadas</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">R$ ${quadra.estatisticas.receitaTotal.toFixed(0)}</div>
+                <div class="stat-label">Receita Total</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.taxaOcupacao}%</div>
+                <div class="stat-label">Taxa Ocupa\xE7\xE3o</div>
+              </div>
+            </div>
+            
+            <div class="calendar-grid">
+              <div class="day-header">DOM</div>
+              <div class="day-header">SEG</div>
+              <div class="day-header">TER</div>
+              <div class="day-header">QUA</div>
+              <div class="day-header">QUI</div>
+              <div class="day-header">SEX</div>
+              <div class="day-header">S\xC1B</div>
+        `;
+        const primeiroDia = new Date(quadra.dias[0].data.split("/").reverse().join("-"));
+        const primeiroDiaSemana = primeiroDia.getDay();
+        for (let i = 0; i < primeiroDiaSemana; i++) {
+          htmlContent += '<div class="day-cell"></div>';
+        }
+        quadra.dias.forEach((dia) => {
+          const numeroDia = dia.data.split("/")[0];
+          htmlContent += `
+            <div class="day-cell">
+              <div class="day-number">${numeroDia}</div>
+              <div class="day-name">${dia.diaSemana.substring(0, 3).toUpperCase()}</div>
+          `;
+          dia.reservas.slice(0, 3).forEach((reserva) => {
+            const statusClass = reserva.status === "Confirmada" ? "reserva-confirmada" : reserva.status === "Pendente" ? "reserva-pendente" : "reserva-cancelada";
+            htmlContent += `
+              <div class="reserva-item ${statusClass}">
+                ${reserva.horario.split(" - ")[0]} ${reserva.cliente.split(" ")[0]}
+              </div>
+            `;
+          });
+          if (dia.reservas.length > 3) {
+            htmlContent += `<div class="reserva-item">+${dia.reservas.length - 3} mais</div>`;
+          }
+          htmlContent += "</div>";
+        });
+        htmlContent += "</div></div>";
+      });
+      htmlContent += `
+          <div class="footer">
+            \xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI \u2022 Sistema de Gest\xE3o Esportiva v2.1.0<br>
+            Relat\xF3rio gerado automaticamente pelo sistema \u2022 Dados atualizados em tempo real
+          </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Painel_Visual_${dados.periodo.replace(/\s+/g, "_")}_${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      registrarAtividade("EXPORT_PDF_PAINEL", `PDF do painel visual exportado - ${dados.periodo}`);
+      alert(`\u2705 PDF do Painel Visual exportado!
+Per\xEDodo: ${dados.periodo}
+Arquivo HTML gerado para convers\xE3o em PDF.`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      alert("\u274C Erro ao gerar PDF. Tente novamente.");
+    }
+  };
+  const gerarPDFSemanalVisual = () => {
+    try {
+      const dataInicio = new Date(dataRelatorio);
+      const quadrasParaExibir = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+      const diasSemana = [];
+      for (let i = 0; i < 7; i++) {
+        const data = new Date(dataInicio);
+        data.setDate(dataInicio.getDate() + i);
+        diasSemana.push(data);
+      }
+      const horarios = [];
+      for (let h = 6; h <= 22; h++) {
+        horarios.push(`${h.toString().padStart(2, "0")}:00`);
+      }
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Programa\xE7\xE3o Semanal - ${dataInicio.toLocaleDateString("pt-BR")}</title>
+          <style>
+            @page { size: A4 landscape; margin: 0.5cm; }
+            body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; }
+            .header { text-align: center; margin-bottom: 15px; background: #2563eb; color: white; padding: 10px; border-radius: 5px; }
+            .quadra-section { margin-bottom: 20px; page-break-inside: avoid; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; }
+            .quadra-header { background: #f3f4f6; padding: 8px; border-bottom: 1px solid #ddd; }
+            .quadra-name { font-size: 12px; font-weight: bold; color: #1f2937; }
+            .calendar-grid { width: 100%; border-collapse: collapse; }
+            .calendar-grid th, .calendar-grid td { border: 1px solid #ccc; padding: 4px; text-align: center; vertical-align: top; }
+            .calendar-grid th { background: #2563eb; color: white; font-weight: bold; font-size: 9px; }
+            .horario-col { background: #f8fafc; font-weight: bold; width: 60px; }
+            .day-col { width: 120px; min-height: 25px; position: relative; }
+            .reserva-item { background: #dcfce7; margin: 1px; padding: 2px; border-radius: 2px; font-size: 8px; border-left: 2px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo { background: #f0f9ff; padding: 8px; text-align: center; font-size: 9px; }
+            .valores-quadra { font-size: 9px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div style="font-size: 14px; font-weight: bold;">ESPORTE CLUBE JUREMA - PROGRAMA\xC7\xC3O SEMANAL</div>
+            <div style="font-size: 11px;">Semana de ${diasSemana[0].toLocaleDateString("pt-BR")} a ${diasSemana[6].toLocaleDateString("pt-BR")}</div>
+            <div style="font-size: 10px;">Gerado em: ${(/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      quadrasParaExibir.forEach((quadra) => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="valores-quadra">
+                Valores: ${quadra.usarTabelaDiferenciada ? `\u{1F305} Manh\xE3/Tarde: R$ ${quadra.valorManha}/h \u2022 \u{1F319} Noite: R$ ${quadra.valorNoite}/h` : `R$ ${quadra.valorHora}/h`}
+              </div>
+            </div>
+            
+            <table class="calendar-grid">
+              <thead>
+                <tr>
+                  <th class="horario-col">Hor\xE1rio</th>
+        `;
+        diasSemana.forEach((data) => {
+          const diaSemana = data.toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase();
+          const dataFormatada = `${data.getDate().toString().padStart(2, "0")}/${(data.getMonth() + 1).toString().padStart(2, "0")}`;
+          htmlContent += `<th class="day-col">${diaSemana}<br>${dataFormatada}</th>`;
+        });
+        htmlContent += `
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        horarios.forEach((horario) => {
+          htmlContent += `<tr><td class="horario-col">${horario}</td>`;
+          diasSemana.forEach((data) => {
+            const dataStr = data.toISOString().split("T")[0];
+            const horaInicio = horario;
+            const horaFim = `${(parseInt(horario.split(":")[0]) + 1).toString().padStart(2, "0")}:00`;
+            const reservasNoSlot = reservas.filter((r) => {
+              if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+              return r.horaInicio < horaFim && r.horaFim > horaInicio;
+            });
+            htmlContent += `<td class="day-col">`;
+            if (reservasNoSlot.length > 0) {
+              const reserva = reservasNoSlot[0];
+              const cliente = clientes.find((c) => c.id === reserva.clienteId);
+              const statusClass = reserva.status === "Confirmada" ? "reserva-item" : reserva.status === "Pendente" ? "reserva-item reserva-pendente" : "reserva-item reserva-cancelada";
+              htmlContent += `
+                <div class="${statusClass}">
+                  <div style="font-weight: bold;">${reserva.horaInicio}-${reserva.horaFim}</div>
+                  <div>${cliente?.nome || "N/A"}</div>
+                  <div>R$ ${(reserva.valor || 0).toFixed(0)}</div>
+                </div>
+              `;
+            }
+            htmlContent += `</td>`;
+          });
+          htmlContent += `</tr>`;
+        });
+        htmlContent += `
+              </tbody>
+            </table>
+            
+            <div class="resumo">
+        `;
+        const reservasSemana = reservas.filter((r) => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && dataReserva >= diasSemana[0] && dataReserva <= diasSemana[6];
+        });
+        const totalReservas = reservasSemana.length;
+        const receitaSemana = reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const totalSlots = 7 * 17;
+        const ocupacao = (totalReservas / totalSlots * 100).toFixed(1);
+        htmlContent += `
+          Reservas na Semana: <strong>${totalReservas}</strong> \u2022 
+          Taxa de Ocupa\xE7\xE3o: <strong>${ocupacao}%</strong> \u2022 
+          Receita Semana: <strong>R$ ${receitaSemana.toFixed(2)}</strong> \u2022 
+          Slots Dispon\xEDveis: <strong>${totalSlots - totalReservas}</strong>
+            </div>
+          </div>
+        `;
+      });
+      htmlContent += `
+          <div style="margin-top: 15px; text-align: center; font-size: 8px; color: #666;">
+            \xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI \u2022 Sistema de Gest\xE3o Esportiva v2.1.0<br>
+            Relat\xF3rio gerado automaticamente \u2022 Layout otimizado para impress\xE3o
+          </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Programacao_Semanal_${diasSemana[0].toLocaleDateString("pt-BR").replace(/\//g, "_")}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      registrarAtividade("EXPORT_PDF_SEMANAL", `PDF semanal visual exportado - ${diasSemana[0].toLocaleDateString("pt-BR")}`);
+      alert(`\u2705 PDF da Programa\xE7\xE3o Semanal exportado!
+
+\u{1F4C5} Per\xEDodo: ${diasSemana[0].toLocaleDateString("pt-BR")} a ${diasSemana[6].toLocaleDateString("pt-BR")}
+\u{1F4CA} Formato: Calend\xE1rio visual limpo
+\u{1F4C1} Arquivo HTML gerado para convers\xE3o em PDF
+
+\u{1F4A1} Abra o arquivo e use Ctrl+P para imprimir em PDF`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF semanal:", error);
+      alert("\u274C Erro ao gerar PDF semanal. Tente novamente.");
+    }
+  };
+  const gerarXLSSemanalVisual = () => {
+    try {
+      const dataInicio = new Date(dataRelatorio);
+      const quadrasParaExibir = quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa);
+      const diasSemana = [];
+      for (let i = 0; i < 7; i++) {
+        const data = new Date(dataInicio);
+        data.setDate(dataInicio.getDate() + i);
+        diasSemana.push(data);
+      }
+      const horarios = [];
+      for (let h = 6; h <= 22; h++) {
+        horarios.push(`${h.toString().padStart(2, "0")}:00`);
+      }
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Programa\xE7\xE3o Semanal - ${dataInicio.toLocaleDateString("pt-BR")}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .header { text-align: center; margin-bottom: 20px; background: #2563eb; color: white; padding: 12px; }
+            .quadra-section { margin-bottom: 25px; page-break-inside: avoid; border: 1px solid #ddd; }
+            .quadra-header { background: #f3f4f6; padding: 10px; border-bottom: 1px solid #ddd; }
+            .calendar-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+            .calendar-table th, .calendar-table td { border: 1px solid #000; padding: 6px; text-align: center; vertical-align: top; }
+            .calendar-table th { background: #2563eb; color: white; font-weight: bold; font-size: 10px; }
+            .horario-cell { background: #f8fafc; font-weight: bold; width: 80px; }
+            .day-cell { width: 140px; min-height: 30px; }
+            .reserva-info { background: #dcfce7; margin: 2px; padding: 3px; border-radius: 3px; font-size: 9px; border-left: 3px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo-quadra { background: #f0f9ff; padding: 10px; text-align: center; font-size: 10px; border-top: 1px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div style="font-size: 16px; font-weight: bold;">ESPORTE CLUBE JUREMA</div>
+            <div style="font-size: 14px;">PROGRAMA\xC7\xC3O SEMANAL DE QUADRAS</div>
+            <div style="font-size: 12px;">Semana de ${diasSemana[0].toLocaleDateString("pt-BR")} a ${diasSemana[6].toLocaleDateString("pt-BR")}</div>
+            <div style="font-size: 10px;">Gerado em: ${(/* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      quadrasParaExibir.forEach((quadra) => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div style="font-size: 14px; font-weight: bold; color: #1f2937;">${quadra.nome} - ${quadra.modalidade}</div>
+              <div style="font-size: 10px; color: #6b7280; margin-top: 5px;">
+                Valores: ${quadra.usarTabelaDiferenciada ? `\u{1F305} Manh\xE3/Tarde (06:00-17:59): R$ ${quadra.valorManha}/h \u2022 \u{1F319} Noite (18:00-22:59): R$ ${quadra.valorNoite}/h` : `R$ ${quadra.valorHora}/h (todos os hor\xE1rios)`}
+              </div>
+            </div>
+            
+            <table class="calendar-table">
+              <thead>
+                <tr>
+                  <th class="horario-cell">HOR\xC1RIO</th>
+        `;
+        diasSemana.forEach((data) => {
+          const diaSemana = data.toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase();
+          const dataFormatada = `${data.getDate().toString().padStart(2, "0")}/${(data.getMonth() + 1).toString().padStart(2, "0")}`;
+          htmlContent += `<th class="day-cell">${diaSemana}<br>${dataFormatada}</th>`;
+        });
+        htmlContent += `
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        horarios.forEach((horario) => {
+          htmlContent += `<tr><td class="horario-cell">${horario}</td>`;
+          diasSemana.forEach((data) => {
+            const dataStr = data.toISOString().split("T")[0];
+            const horaInicio = horario;
+            const horaFim = `${(parseInt(horario.split(":")[0]) + 1).toString().padStart(2, "0")}:00`;
+            const reservasNoSlot = reservas.filter((r) => {
+              if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+              return r.horaInicio < horaFim && r.horaFim > horaInicio;
+            });
+            htmlContent += `<td class="day-cell">`;
+            if (reservasNoSlot.length > 0) {
+              const reserva = reservasNoSlot[0];
+              const cliente = clientes.find((c) => c.id === reserva.clienteId);
+              const statusClass = reserva.status === "Confirmada" ? "reserva-info" : reserva.status === "Pendente" ? "reserva-info reserva-pendente" : "reserva-info reserva-cancelada";
+              htmlContent += `
+                <div class="${statusClass}">
+                  <div style="font-weight: bold; margin-bottom: 2px;">${reserva.horaInicio} - ${reserva.horaFim}</div>
+                  <div style="margin-bottom: 2px;">${cliente?.nome || "Cliente N/A"}</div>
+                  <div style="font-weight: bold; color: #059669;">R$ ${(reserva.valor || 0).toFixed(2)}</div>
+                  <div style="font-size: 8px; margin-top: 2px;">${reserva.status}</div>
+                </div>
+              `;
+            } else {
+              htmlContent += `<div style="color: #9ca3af; text-align: center; padding: 20px; font-style: italic;">Dispon\xEDvel</div>`;
+            }
+            htmlContent += `</td>`;
+          });
+          htmlContent += `</tr>`;
+        });
+        htmlContent += `
+              </tbody>
+            </table>
+            
+            <div class="resumo-quadra">
+        `;
+        const reservasSemana = reservas.filter((r) => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && dataReserva >= diasSemana[0] && dataReserva <= diasSemana[6];
+        });
+        const totalReservas = reservasSemana.length;
+        const reservasConfirmadas = reservasSemana.filter((r) => r.status === "Confirmada").length;
+        const receitaSemana = reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const receitaPaga = reservasSemana.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+        const totalSlots = 7 * 17;
+        const ocupacao = (totalReservas / totalSlots * 100).toFixed(1);
+        htmlContent += `
+          <strong>\u{1F4CA} RESUMO DA SEMANA:</strong><br>
+          Total de Reservas: <strong>${totalReservas}</strong> \u2022 
+          Confirmadas: <strong>${reservasConfirmadas}</strong> \u2022 
+          Taxa de Ocupa\xE7\xE3o: <strong>${ocupacao}%</strong><br>
+          Receita Total: <strong>R$ ${receitaSemana.toFixed(2)}</strong> \u2022 
+          Valor Recebido: <strong>R$ ${receitaPaga.toFixed(2)}</strong> \u2022 
+          Slots Livres: <strong>${totalSlots - totalReservas}</strong>
+            </div>
+          </div>
+        `;
+      });
+      htmlContent += `
+          <div style="margin-top: 20px; padding: 10px; background: #f3f4f6; text-align: center; font-size: 10px; color: #6b7280;">
+            <strong>LEGENDA:</strong> 
+            \u{1F7E2} Verde = Confirmada \u2022 \u{1F7E1} Amarelo = Pendente \u2022 \u{1F534} Vermelho = Cancelada<br>
+            <strong>\xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI</strong> \u2022 Sistema de Gest\xE3o Esportiva v2.1.0 \u2022 
+            Relat\xF3rio otimizado para impress\xE3o e planilhas
+          </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([htmlContent], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Programacao_Semanal_${diasSemana[0].toLocaleDateString("pt-BR").replace(/\//g, "_")}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      registrarAtividade("EXPORT_XLS_SEMANAL", `XLS semanal visual exportado - ${diasSemana[0].toLocaleDateString("pt-BR")}`);
+      alert(`\u2705 Excel da Programa\xE7\xE3o Semanal exportado!
+
+\u{1F4C5} Per\xEDodo: ${diasSemana[0].toLocaleDateString("pt-BR")} a ${diasSemana[6].toLocaleDateString("pt-BR")}
+\u{1F4CA} Formato: Planilha com layout de calend\xE1rio
+\u{1F4C1} Arquivo .XLS otimizado para Excel
+
+\u{1F4A1} Abra no Excel para melhor visualiza\xE7\xE3o e impress\xE3o`);
+    } catch (error) {
+      console.error("Erro ao gerar XLS semanal:", error);
+      alert("\u274C Erro ao gerar XLS semanal. Tente novamente.");
+    }
+  };
+  const gerarExportacaoPainelXLS = () => {
+    try {
+      const dados = gerarDadosMensaisPainel();
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Painel Visual - ${dados.periodo}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .header { text-align: center; margin-bottom: 20px; background: #2563eb; color: white; padding: 15px; }
+            .title { font-size: 16px; font-weight: bold; margin: 5px 0; }
+            .subtitle { font-size: 12px; margin: 3px 0; }
+            .quadra-section { margin-bottom: 30px; page-break-inside: avoid; border: 1px solid #ddd; }
+            .quadra-header { background: #f3f4f6; padding: 12px; border-bottom: 1px solid #ddd; }
+            .quadra-name { font-size: 14px; font-weight: bold; color: #1f2937; }
+            .quadra-info { font-size: 10px; color: #6b7280; margin-top: 5px; }
+            .stats-section { background: #f8fafc; padding: 10px; margin: 10px 0; }
+            .stats-grid { display: table; width: 100%; }
+            .stat-row { display: table-row; }
+            .stat-cell { display: table-cell; padding: 8px; border: 1px solid #e5e7eb; }
+            .stat-label { font-weight: bold; background: #e5e7eb; }
+            .calendar-section { margin: 15px 0; }
+            .calendar-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+            .calendar-table th, .calendar-table td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size: 10px; }
+            .calendar-table th { background: #2563eb; color: white; font-weight: bold; }
+            .calendar-header { background: #dbeafe; font-weight: bold; text-align: center; padding: 5px; }
+            .day-cell { min-height: 80px; vertical-align: top; position: relative; }
+            .reserva-item { background: #dcfce7; margin: 2px; padding: 3px; border-radius: 3px; font-size: 9px; border-left: 3px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo-section { background: #f0f9ff; padding: 10px; margin-top: 15px; border: 1px solid #0ea5e9; }
+            .resumo-grid { display: table; width: 100%; }
+            .resumo-row { display: table-row; }
+            .resumo-cell { display: table-cell; padding: 5px; border: 1px solid #0ea5e9; text-align: center; }
+            .resumo-header { background: #0ea5e9; color: white; font-weight: bold; }
+            .sem-reservas { color: #9ca3af; font-style: italic; padding: 20px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">ESPORTE CLUBE JUREMA - PAINEL VISUAL MENSAL</div>
+            <div class="subtitle">${dados.periodo}</div>
+            <div class="subtitle">Gerado em: ${dados.dataGeracao} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      dados.quadras.forEach((quadra) => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="quadra-info">
+                Valores: ${quadra.usarTabelaDiferenciada ? `\u{1F305} Manh\xE3/Tarde: R$ ${quadra.valorManha}/h \u2022 \u{1F319} Noite: R$ ${quadra.valorNoite}/h` : `R$ ${quadra.valorHora}/h`}
+              </div>
+            </div>
+            
+            <div class="stats-section">
+              <h4 style="margin: 0 0 10px 0; color: #1f2937;">\u{1F4CA} Estat\xEDsticas da Quadra</h4>
+              <div class="stats-grid">
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Total de Reservas</div>
+                  <div class="stat-cell">${quadra.estatisticas.totalReservas}</div>
+                  <div class="stat-cell stat-label">Confirmadas</div>
+                  <div class="stat-cell">${quadra.estatisticas.reservasConfirmadas}</div>
+                </div>
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Receita Total</div>
+                  <div class="stat-cell">R$ ${quadra.estatisticas.receitaTotal.toFixed(2)}</div>
+                  <div class="stat-cell stat-label">Taxa de Ocupa\xE7\xE3o</div>
+                  <div class="stat-cell">${quadra.estatisticas.taxaOcupacao}%</div>
+                </div>
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Receita Recebida</div>
+                  <div class="stat-cell">R$ ${quadra.estatisticas.receitaPaga.toFixed(2)}</div>
+                  <div class="stat-cell stat-label">Valor Pendente</div>
+                  <div class="stat-cell">R$ ${(quadra.estatisticas.receitaTotal - quadra.estatisticas.receitaPaga).toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="calendar-section">
+              <h4 style="margin: 10px 0; color: #1f2937;">\u{1F4C5} Calend\xE1rio Mensal - Visualiza\xE7\xE3o por Dia</h4>
+              <table class="calendar-table">
+                <thead>
+                  <tr>
+                    <th>DOM</th><th>SEG</th><th>TER</th><th>QUA</th><th>QUI</th><th>SEX</th><th>SAB</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+        const primeiroDia = new Date(quadra.dias[0].data.split("/").reverse().join("-"));
+        const primeiroDiaSemana = primeiroDia.getDay();
+        let diaAtual = 0;
+        const totalDias = quadra.dias.length;
+        const semanas = Math.ceil((totalDias + primeiroDiaSemana) / 7);
+        for (let semana = 0; semana < semanas; semana++) {
+          htmlContent += "<tr>";
+          for (let diaSemana = 0; diaSemana < 7; diaSemana++) {
+            if (semana === 0 && diaSemana < primeiroDiaSemana || diaAtual >= totalDias) {
+              htmlContent += '<td class="day-cell"></td>';
+            } else {
+              const dia = quadra.dias[diaAtual];
+              const numeroDia = dia.data.split("/")[0];
+              htmlContent += `<td class="day-cell">`;
+              htmlContent += `<div style="font-weight: bold; margin-bottom: 5px;">${numeroDia}</div>`;
+              htmlContent += `<div style="font-size: 8px; color: #666; margin-bottom: 5px;">${dia.diaSemana.substring(0, 3).toUpperCase()}</div>`;
+              if (dia.reservas.length > 0) {
+                dia.reservas.slice(0, 4).forEach((reserva) => {
+                  const statusClass = reserva.status === "Confirmada" ? "reserva-item" : reserva.status === "Pendente" ? "reserva-item reserva-pendente" : "reserva-item reserva-cancelada";
+                  htmlContent += `
+                    <div class="${statusClass}">
+                      <div style="font-weight: bold;">${reserva.horario.split(" - ")[0]}</div>
+                      <div>${reserva.cliente.split(" ")[0]}</div>
+                      <div>R$ ${reserva.valor.toFixed(0)}</div>
+                    </div>
+                  `;
+                });
+                if (dia.reservas.length > 4) {
+                  htmlContent += `<div style="font-size: 8px; color: #666; margin-top: 2px;">+${dia.reservas.length - 4} mais</div>`;
+                }
+              } else {
+                htmlContent += '<div class="sem-reservas">Livre</div>';
+              }
+              htmlContent += "</td>";
+              diaAtual++;
+            }
+          }
+          htmlContent += "</tr>";
+        }
+        htmlContent += `
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="resumo-section">
+              <h4 style="margin: 0 0 10px 0; color: #0f172a;">\u{1F4C8} Resumo de Performance</h4>
+              <div class="resumo-grid">
+                <div class="resumo-row">
+                  <div class="resumo-cell resumo-header">Reservas na Semana</div>
+                  <div class="resumo-cell resumo-header">Ocupa\xE7\xE3o</div>
+                  <div class="resumo-cell resumo-header">Receita</div>
+                  <div class="resumo-cell resumo-header">Slots Livres</div>
+                </div>
+                <div class="resumo-row">
+                  <div class="resumo-cell">${quadra.estatisticas.totalReservas}</div>
+                  <div class="resumo-cell">${quadra.estatisticas.taxaOcupacao}%</div>
+                  <div class="resumo-cell">R$ ${quadra.estatisticas.receitaTotal.toFixed(2)}</div>
+                  <div class="resumo-cell">${31 * 17 - quadra.estatisticas.totalReservas}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      const totalReservas = dados.quadras.reduce((acc, q) => acc + q.estatisticas.totalReservas, 0);
+      const totalReceita = dados.quadras.reduce((acc, q) => acc + q.estatisticas.receitaTotal, 0);
+      const totalRecebido = dados.quadras.reduce((acc, q) => acc + q.estatisticas.receitaPaga, 0);
+      htmlContent += `
+          <div style="background: #065f46; color: white; padding: 15px; margin-top: 20px; border-radius: 8px;">
+            <h3 style="margin: 0 0 15px 0; text-align: center;">\u{1F3C6} RESUMO GERAL DO PER\xCDODO</h3>
+            <div class="resumo-grid">
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Total de Quadras</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Total de Reservas</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Receita Total</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Valor Recebido</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">${dados.quadras.length}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">${totalReservas}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">R$ ${totalReceita.toFixed(2)}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">R$ ${totalRecebido.toFixed(2)}</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Taxa Geral</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Valor Pendente</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">% Recebimento</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Performance</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 0 ? (totalReservas / (dados.quadras.length * 31 * 17) * 100).toFixed(1) : 0}%
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  R$ ${(totalReceita - totalRecebido).toFixed(2)}
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 0 ? Math.round(totalRecebido / totalReceita * 100) : 0}%
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 15e3 ? "\u{1F7E2} Excelente" : totalReceita > 1e4 ? "\u{1F7E1} Bom" : "\u{1F534} Baixo"}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 10px; background: #f3f4f6; border-radius: 5px; text-align: center;">
+            <p style="margin: 0; font-size: 10px; color: #6b7280;">
+              <strong>\xA9 2025 PauloCunhaMKT Solu\xE7\xF5es TI</strong> \u2022 Sistema de Gest\xE3o Esportiva v2.1.0<br>
+              Relat\xF3rio gerado automaticamente \u2022 Dados atualizados em tempo real \u2022 Esporte Clube Jurema
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([htmlContent], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Painel_Visual_${dados.periodo.replace(/\s+/g, "_")}_${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      registrarAtividade("EXPORT_XLS_PAINEL", `Excel do painel visual exportado - ${dados.periodo}`);
+      alert(`\u2705 Excel do Painel Visual exportado com formata\xE7\xE3o!
+
+\u{1F4CA} Conte\xFAdo inclu\xEDdo:
+\u2022 Calend\xE1rio visual mensal por quadra
+\u2022 Estat\xEDsticas detalhadas de ocupa\xE7\xE3o
+\u2022 Resumo financeiro completo
+\u2022 Layout similar ao painel do sistema
+
+Per\xEDodo: ${dados.periodo}
+\u{1F4C1} Arquivo: .XLS otimizado para Excel`);
+    } catch (error) {
+      console.error("Erro ao gerar Excel:", error);
+      alert("\u274C Erro ao gerar Excel. Tente novamente.");
+    }
+  };
   useEffect(() => {
     if (formReserva.tipoReserva === "mensal" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0) {
       const valorMensal = calcularValorMensal();
@@ -870,8 +1796,27 @@ Detalhes: ${error.message}`);
         valorMensal,
         valorParcela
       }));
+    } else if (formReserva.tipoReserva === "avulsa" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim) {
+      const quadra = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
+      if (quadra && formReserva.horaInicio < formReserva.horaFim) {
+        const horaInicio = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
+        const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
+        const minutos = (horaFim - horaInicio) / (1e3 * 60);
+        const horas = minutos / 60;
+        let valorPorHora;
+        if (quadra.usarTabelaDiferenciada) {
+          valorPorHora = calcularValorPorHorario(quadra, formReserva.horaInicio);
+        } else {
+          valorPorHora = parseFloat(quadra.valorHora) || 0;
+        }
+        const valorCalculado = horas * valorPorHora;
+        setFormReserva((prev) => ({
+          ...prev,
+          valor: valorCalculado.toFixed(2)
+        }));
+      }
     }
-  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva]);
+  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva, quadras]);
   useEffect(() => {
     if (!configuracaoBackup.autoBackup) return;
     const verificarBackupAutomatico = () => {
@@ -941,6 +1886,7 @@ Detalhes: ${error.message}`);
   });
   const tabIcons = {
     dashboard: Home,
+    painel: BarChart3,
     reservas: CalendarDays,
     quadras: Building,
     clientes: UserCheck,
@@ -950,7 +1896,8 @@ Detalhes: ${error.message}`);
     sistema: Shield
   };
   const tabLabels = {
-    dashboard: "Painel",
+    dashboard: "In\xEDcio",
+    painel: "Painel",
     reservas: "Reservas",
     quadras: "Quadras",
     clientes: "Clientes",
@@ -1281,7 +2228,7 @@ Detalhes: ${error.message}`);
     const quadra = quadras.find((q) => q.id === reserva.quadraId);
     const cliente = clientes.find((c) => c.id === reserva.clienteId);
     return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "flex items-center justify-between py-3 border-b last:border-b-0" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1 min-w-0" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium truncate" }, quadra?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600 truncate" }, cliente?.nome), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500" }, reserva.data, " \xE0s ", reserva.horaInicio)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full whitespace-nowrap ml-2 ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status));
-  }), reservas.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "text-gray-500 text-center py-8" }, "Nenhuma reserva cadastrada")))), activeTab === "reservas" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Reservas"), /* @__PURE__ */ React.createElement(
+  }), reservas.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "text-gray-500 text-center py-8" }, "Nenhuma reserva cadastrada")))), activeTab === "reservas" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Reservas por Cliente"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Clique no cliente para ver suas reservas")), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => {
@@ -1296,7 +2243,7 @@ Detalhes: ${error.message}`);
     "input",
     {
       type: "text",
-      placeholder: "Buscar...",
+      placeholder: "Buscar cliente...",
       value: searchTerm,
       onChange: (e) => setSearchTerm(e.target.value),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -1307,45 +2254,113 @@ Detalhes: ${error.message}`);
       type: "date",
       value: filtroData,
       onChange: (e) => setFiltroData(e.target.value),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
+      placeholder: "Filtrar por data"
     }
-  ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3 md:hidden" }, reservasFiltradas.map((reserva) => {
-    const quadra = quadras.find((q) => q.id === reserva.quadraId);
-    const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, /* @__PURE__ */ React.createElement("h3", { className: "font-medium text-gray-900" }, quadra?.nome), reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium" }, "\u{1F4C5} MENSAL")), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, cliente?.nome), reserva.tipoReserva === "mensal" && reserva.mesReferencia && /* @__PURE__ */ React.createElement("p", { className: "text-xs text-purple-600 font-medium" }, "M\xEAs: ", reserva.mesReferencia)), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3" }, /* @__PURE__ */ React.createElement("div", null, "Data: ", reserva.data), /* @__PURE__ */ React.createElement("div", null, "Valor: R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("div", null, "In\xEDcio: ", reserva.horaInicio), /* @__PURE__ */ React.createElement("div", null, "Fim: ", reserva.horaFim)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-green-600 font-medium" }, "Pago: R$ ", (reserva.valorPago || 0).toFixed(2))), reserva.valorPago > 0 && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-blue-600 mb-2" }, reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`, reserva.dataPagamento && ` \u2022 Data: ${new Date(reserva.dataPagamento).toLocaleDateString("pt-BR")}`), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: () => editarReserva(reserva),
-        className: "flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700"
-      },
-      "Editar"
-    ), /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: () => excluirReserva(reserva.id),
-        className: "bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
-      },
-      /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-    )));
-  }), reservasFiltradas.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "text-center py-8 text-gray-500" }, "Nenhuma reserva encontrada")), /* @__PURE__ */ React.createElement("div", { className: "hidden md:block bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Cliente"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasFiltradas.map((reserva) => {
-    const quadra = quadras.find((q) => q.id === reserva.quadraId);
-    const cliente = clientes.find((c) => c.id === reserva.clienteId);
-    return /* @__PURE__ */ React.createElement("tr", { key: reserva.id }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, reserva.data, " ", reserva.horaInicio, "-", reserva.horaFim, reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-purple-600 font-medium" }, "\u{1F4C5} Mensal: ", reserva.mesReferencia)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, quadra?.nome, reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800" }, "MENSAL"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, cliente?.nome), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, "R$ ", reserva.valor?.toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium" }, "R$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: () => editarReserva(reserva),
-        className: "text-green-600 hover:text-green-900 mr-3"
-      },
-      /* @__PURE__ */ React.createElement(Edit, { className: "h-4 w-4" })
-    ), /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: () => excluirReserva(reserva.id),
-        className: "text-red-600 hover:text-red-900"
-      },
-      /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-    )));
-  })))))), activeTab === "quadras" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Quadras"), /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "w-full md:w-auto" }, /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: quadraImpressao,
+      onChange: (e) => setQuadraImpressao(e.target.value),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Todas as Quadras"),
+    quadras.filter((q) => q.ativa).map((quadra) => /* @__PURE__ */ React.createElement("option", { key: quadra.id, value: quadra.id }, quadra.nome))
+  ))), /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, (() => {
+    const reservasPorCliente = {};
+    const clientesFiltrados = clientes.filter((cliente) => {
+      if (searchTerm && !cliente.nome.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+    const reservasFiltradas2 = reservas.filter((reserva) => {
+      const matchData = !filtroData || reserva.data === filtroData;
+      const matchQuadra = !quadraImpressao || reserva.quadraId == quadraImpressao;
+      return matchData && matchQuadra;
+    });
+    reservasFiltradas2.forEach((reserva) => {
+      const cliente = clientes.find((c) => c.id === reserva.clienteId);
+      if (cliente && clientesFiltrados.find((c) => c.id === cliente.id)) {
+        if (!reservasPorCliente[cliente.id]) {
+          reservasPorCliente[cliente.id] = {
+            cliente,
+            reservas: []
+          };
+        }
+        reservasPorCliente[cliente.id].reservas.push(reserva);
+      }
+    });
+    const clientesComReservas = Object.values(reservasPorCliente).sort((a, b) => a.cliente.nome.localeCompare(b.cliente.nome));
+    if (clientesComReservas.length === 0) {
+      return /* @__PURE__ */ React.createElement("div", { className: "text-center py-12 bg-white rounded-lg shadow" }, /* @__PURE__ */ React.createElement(Users, { className: "h-12 w-12 text-gray-400 mx-auto mb-4" }), /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-2" }, "Nenhuma reserva encontrada"), /* @__PURE__ */ React.createElement("p", { className: "text-gray-500 mb-4" }, searchTerm || filtroData || quadraImpressao ? "Ajuste os filtros para ver as reservas." : "Comece criando uma nova reserva."), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => {
+            setModalType("reserva");
+            setShowModal(true);
+          },
+          className: "bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 mx-auto"
+        },
+        /* @__PURE__ */ React.createElement(Plus, { className: "h-4 w-4" }),
+        /* @__PURE__ */ React.createElement("span", null, "Nova Reserva")
+      ));
+    }
+    return clientesComReservas.map(({ cliente, reservas: reservasCliente }) => {
+      const isExpanded = clientesExpandidos[cliente.id];
+      const totalReservas = reservasCliente.length;
+      const valorTotalCliente = reservasCliente.reduce((acc, r) => acc + (r.valor || 0), 0);
+      const valorPagoCliente = reservasCliente.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+      const reservasPendentes = reservasCliente.filter((r) => (r.statusPagamento || "Pendente") !== "Pago").length;
+      return /* @__PURE__ */ React.createElement("div", { key: cliente.id, className: "bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          className: "p-4 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-blue-500",
+          onClick: () => toggleClienteExpandido(cliente.id)
+        },
+        /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-3" }, /* @__PURE__ */ React.createElement("div", { className: "w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-blue-600 font-medium text-lg" }, cliente.nome.charAt(0).toUpperCase())), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900" }, cliente.nome), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-4 text-sm text-gray-600" }, /* @__PURE__ */ React.createElement("span", null, cliente.telefone), /* @__PURE__ */ React.createElement("span", null, "\u2022"), /* @__PURE__ */ React.createElement("span", null, totalReservas, " reserva", totalReservas !== 1 ? "s" : ""), reservasPendentes > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", null, "\u2022"), /* @__PURE__ */ React.createElement("span", { className: "text-red-600 font-medium" }, reservasPendentes, " pendente", reservasPendentes !== 1 ? "s" : ""))))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-4" }, /* @__PURE__ */ React.createElement("div", { className: "text-right" }, /* @__PURE__ */ React.createElement("div", { className: "text-lg font-bold text-blue-600" }, "R$ ", valorTotalCliente.toFixed(2)), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-green-600 font-medium" }, "Pago: R$ ", valorPagoCliente.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "transition-transform duration-200" }, isExpanded ? /* @__PURE__ */ React.createElement("div", { className: "w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-blue-600 font-bold" }, "\u2212")) : /* @__PURE__ */ React.createElement("div", { className: "w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center" }, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600 font-bold" }, "+")))))
+      ), isExpanded && /* @__PURE__ */ React.createElement("div", { className: "border-t border-gray-200" }, /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("div", { className: "hidden md:block" }, /* @__PURE__ */ React.createElement("table", { className: "min-w-full divide-y divide-gray-200" }, /* @__PURE__ */ React.createElement("thead", { className: "bg-gray-50" }, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Data/Hora"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Quadra"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Valor"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Status"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "Pagamento"), /* @__PURE__ */ React.createElement("th", { className: "px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" }, "A\xE7\xF5es"))), /* @__PURE__ */ React.createElement("tbody", { className: "bg-white divide-y divide-gray-200" }, reservasCliente.sort((a, b) => new Date(b.data) - new Date(a.data)).map((reserva) => {
+        const quadra = quadras.find((q) => q.id === reserva.quadraId);
+        return /* @__PURE__ */ React.createElement("tr", { key: reserva.id, className: "hover:bg-gray-50" }, /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "font-medium" }, new Date(reserva.data).toLocaleDateString("pt-BR")), /* @__PURE__ */ React.createElement("div", { className: "text-gray-600" }, reserva.horaInicio, " - ", reserva.horaFim), reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-purple-600 font-medium mt-1" }, reserva.periodoReal ? /* @__PURE__ */ React.createElement(React.Fragment, null, "\u{1F4C5} ", reserva.periodoReal) : /* @__PURE__ */ React.createElement(React.Fragment, null, "\u{1F4C5} Mensal: ", reserva.mesReferencia)))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-900" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2" }, quadra?.nome, reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800" }, "MENSAL"))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium" }, "R$ ", (reserva.valor || 0).toFixed(2)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status)), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600 font-medium mt-1" }, "R$ ", (reserva.valorPago || 0).toFixed(2), reserva.valorPago > 0 && reserva.formaPagamento && /* @__PURE__ */ React.createElement("span", { className: "text-gray-500" }, " \u2022 ", reserva.formaPagamento))), /* @__PURE__ */ React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-medium" }, /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => editarReserva(reserva),
+            className: "text-green-600 hover:text-green-900",
+            title: "Editar reserva"
+          },
+          /* @__PURE__ */ React.createElement(Edit, { className: "h-4 w-4" })
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => excluirReserva(reserva.id),
+            className: "text-red-600 hover:text-red-900",
+            title: "Excluir reserva"
+          },
+          /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
+        ))));
+      })))), /* @__PURE__ */ React.createElement("div", { className: "md:hidden p-4 space-y-3" }, reservasCliente.sort((a, b) => new Date(b.data) - new Date(a.data)).map((reserva) => {
+        const quadra = quadras.find((q) => q.id === reserva.quadraId);
+        return /* @__PURE__ */ React.createElement("div", { key: reserva.id, className: "bg-gray-50 rounded-lg p-3 border" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center gap-2 mb-1" }, /* @__PURE__ */ React.createElement("h4", { className: "font-medium text-gray-900" }, quadra?.nome), reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("span", { className: "px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium" }, "\u{1F4C5} MENSAL")), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, new Date(reserva.data).toLocaleDateString("pt-BR"), " \u2022 ", reserva.horaInicio, " - ", reserva.horaFim), reserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-purple-600 font-medium mt-1" }, reserva.periodoReal ? /* @__PURE__ */ React.createElement(React.Fragment, null, "\u{1F4C5} Per\xEDodo: ", reserva.periodoReal) : /* @__PURE__ */ React.createElement(React.Fragment, null, "\u{1F4C5} Ref: ", reserva.mesReferencia))), /* @__PURE__ */ React.createElement("div", { className: "text-right" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.status === "Confirmada" ? "bg-green-100 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.status))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2 text-sm mb-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Valor:"), /* @__PURE__ */ React.createElement("span", { className: "font-medium text-blue-600 ml-1" }, "R$ ", (reserva.valor || 0).toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Pago:"), /* @__PURE__ */ React.createElement("span", { className: "font-medium text-green-600 ml-1" }, "R$ ", (reserva.valorPago || 0).toFixed(2)))), /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${reserva.statusPagamento === "Pago" ? "bg-green-100 text-green-800" : reserva.statusPagamento === "Parcial" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}` }, reserva.statusPagamento || "Pendente"), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => editarReserva(reserva),
+            className: "bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
+          },
+          "Editar"
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => excluirReserva(reserva.id),
+            className: "bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+          },
+          /* @__PURE__ */ React.createElement(Trash2, { className: "h-3 w-3" })
+        ))));
+      })))));
+    });
+  })()), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-4" }, "Resumo Geral"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-blue-600" }, (() => {
+    const clientesComReservas = [...new Set(reservas.map((r) => r.clienteId))];
+    return clientesComReservas.length;
+  })()), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, "Clientes Ativos")), /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-green-600" }, reservas.length), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, "Total Reservas")), /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-purple-600" }, "R$ ", reservas.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(0)), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, "Valor Total")), /* @__PURE__ */ React.createElement("div", { className: "text-center" }, /* @__PURE__ */ React.createElement("div", { className: "text-2xl font-bold text-orange-600" }, reservas.filter((r) => (r.statusPagamento || "Pendente") !== "Pago").length), /* @__PURE__ */ React.createElement("div", { className: "text-sm text-gray-600" }, "Pendentes"))))), activeTab === "quadras" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Quadras"), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => {
@@ -1356,7 +2371,7 @@ Detalhes: ${error.message}`);
     },
     /* @__PURE__ */ React.createElement(Plus, { className: "h-4 w-4" }),
     /* @__PURE__ */ React.createElement("span", null, "Nova Quadra")
-  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6" }, quadras.map((quadra) => /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, quadra.nome), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${quadra.ativa ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, quadra.ativa ? "Ativa" : "Inativa")), /* @__PURE__ */ React.createElement("p", { className: "text-gray-600 mb-2 text-sm" }, quadra.modalidade), /* @__PURE__ */ React.createElement("p", { className: "text-gray-900 font-medium mb-4" }, "R$ ", quadra.valorHora, "/hora"), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6" }, quadras.map((quadra) => /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "bg-white rounded-lg shadow p-4 md:p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between items-start mb-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-base md:text-lg font-medium text-gray-900" }, quadra.nome), /* @__PURE__ */ React.createElement("span", { className: `px-2 py-1 text-xs rounded-full ${quadra.ativa ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}` }, quadra.ativa ? "Ativa" : "Inativa")), /* @__PURE__ */ React.createElement("p", { className: "text-gray-600 mb-2 text-sm" }, quadra.modalidade), /* @__PURE__ */ React.createElement("div", { className: "mb-4" }, quadra.usarTabelaDiferenciada ? /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("p", { className: "text-orange-600 font-medium" }, "\u{1F305} Manh\xE3/Tarde (06:00-17:59): R$ ", quadra.valorManha, "/h"), /* @__PURE__ */ React.createElement("p", { className: "text-blue-600 font-medium" }, "\u{1F319} Noite (18:00-22:59): R$ ", quadra.valorNoite, "/h"), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-gray-500 mt-1" }, "Valores diferenciados por per\xEDodo")) : /* @__PURE__ */ React.createElement("p", { className: "text-gray-900 font-medium" }, "R$ ", quadra.valorHora, "/hora")), /* @__PURE__ */ React.createElement("div", { className: "flex space-x-2" }, /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: () => editarQuadra(quadra),
@@ -1846,7 +2861,144 @@ Detalhes: ${error.message}`);
       disabled: usuariosAdmin.length <= 1
     },
     /* @__PURE__ */ React.createElement(Trash2, { className: "h-4 w-4" })
-  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\xDAltimo administrador ativo - n\xE3o pode ser exclu\xEDdo por seguran\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "relatorios" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Centro de Relat\xF3rios"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gere relat\xF3rios detalhados para impress\xE3o e an\xE1lise")), /* @__PURE__ */ React.createElement(
+  )))))), usuariosAdmin.length <= 1 && /* @__PURE__ */ React.createElement("div", { className: "px-6 py-3 bg-red-50 border-t border-red-200" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 mr-2" }), "\xDAltimo administrador ativo - n\xE3o pode ser exclu\xEDdo por seguran\xE7a"))), /* @__PURE__ */ React.createElement("div", { className: "bg-red-50 border border-red-200 rounded-lg p-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-start space-x-4" }, /* @__PURE__ */ React.createElement(AlertCircle, { className: "h-8 w-8 text-red-500 mt-1 flex-shrink-0" }), /* @__PURE__ */ React.createElement("div", { className: "flex-1" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-red-800 mb-2" }, "\xC1rea de Limpeza de Dados"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-red-700 mb-4" }, /* @__PURE__ */ React.createElement("strong", null, "\u26A0\uFE0F OPERA\xC7\xC3O IRREVERS\xCDVEL:"), " Esta fun\xE7\xE3o remove permanentemente todos os dados financeiros do sistema, incluindo reservas, faturamentos e recebimentos. Use apenas quando necess\xE1rio resetar o sistema."), /* @__PURE__ */ React.createElement("div", { className: "bg-red-100 p-3 rounded mb-4" }, /* @__PURE__ */ React.createElement("p", { className: "text-xs text-red-600" }, /* @__PURE__ */ React.createElement("strong", null, "Dados que ser\xE3o removidos:"), /* @__PURE__ */ React.createElement("br", null), "\u2022 Todas as reservas (avulsas e mensais)", /* @__PURE__ */ React.createElement("br", null), "\u2022 Todos os faturamentos administrativos", /* @__PURE__ */ React.createElement("br", null), "\u2022 Todo hist\xF3rico de recebimentos", /* @__PURE__ */ React.createElement("br", null), "\u2022 Controles de receita e inadimpl\xEAncia")), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: limparDadosFinanceiros,
+      className: "bg-red-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-red-700 font-medium"
+    },
+    /* @__PURE__ */ React.createElement(Trash2, { className: "h-5 w-5" }),
+    /* @__PURE__ */ React.createElement("span", null, "Limpar Todos os Dados Financeiros")
+  )))), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Users, { className: "h-8 w-8 text-orange-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-orange-900" }, "Total de Administradores"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-orange-600" }, usuariosAdmin.length)))), /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-8 w-8 text-green-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-green-900" }, "Sistema Seguro"), /* @__PURE__ */ React.createElement("p", { className: "text-2xl font-bold text-green-600" }, "\u2713")))), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 p-4 rounded-lg" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center" }, /* @__PURE__ */ React.createElement(Calendar, { className: "h-8 w-8 text-blue-500 mr-3" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "text-sm font-medium text-blue-900" }, "\xDAltimo Acesso"), /* @__PURE__ */ React.createElement("p", { className: "text-sm font-bold text-blue-600" }, "Hoje")))))), activeTab === "painel" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Painel Visual das Quadras"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Visualiza\xE7\xE3o em tempo real dos hor\xE1rios dispon\xEDveis e ocupados")), /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row gap-2 w-full sm:w-auto" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      value: dataRelatorio,
+      onChange: (e) => setDataRelatorio(e.target.value),
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  ), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      value: quadraImpressao,
+      onChange: (e) => setQuadraImpressao(e.target.value),
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+    },
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Todas as Quadras"),
+    quadras.filter((q) => q.ativa).map((quadra) => /* @__PURE__ */ React.createElement("option", { key: quadra.id, value: quadra.id }, quadra.nome))
+  ), /* @__PURE__ */ React.createElement("div", { className: "flex gap-2" }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => gerarPDFSemanalVisual(),
+      className: "bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700 text-sm",
+      title: "Exportar PDF Semanal Visual"
+    },
+    /* @__PURE__ */ React.createElement(FileText, { className: "h-4 w-4" }),
+    /* @__PURE__ */ React.createElement("span", { className: "hidden sm:inline" }, "PDF Sem")
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => gerarXLSSemanalVisual(),
+      className: "bg-purple-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-purple-700 text-sm",
+      title: "Exportar Excel Semanal Visual"
+    },
+    /* @__PURE__ */ React.createElement(BarChart3, { className: "h-4 w-4" }),
+    /* @__PURE__ */ React.createElement("span", { className: "hidden sm:inline" }, "XLS Sem")
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => gerarExportacaoPainelPDF(),
+      className: "bg-red-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-red-700 text-sm",
+      title: "Exportar PDF Mensal"
+    },
+    /* @__PURE__ */ React.createElement(FileText, { className: "h-4 w-4" }),
+    /* @__PURE__ */ React.createElement("span", { className: "hidden sm:inline" }, "PDF Men")
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => gerarExportacaoPainelXLS(),
+      className: "bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 text-sm",
+      title: "Exportar Excel Mensal"
+    },
+    /* @__PURE__ */ React.createElement(BarChart3, { className: "h-4 w-4" }),
+    /* @__PURE__ */ React.createElement("span", { className: "hidden sm:inline" }, "XLS Men")
+  )))), /* @__PURE__ */ React.createElement("div", { className: "space-y-6" }, (quadraImpressao ? quadras.filter((q) => q.id == quadraImpressao) : quadras.filter((q) => q.ativa)).map((quadra) => {
+    const horarios = [];
+    for (let h = 6; h < 23; h++) {
+      horarios.push(`${h.toString().padStart(2, "0")}:00`);
+    }
+    const dataInicio = new Date(dataRelatorio);
+    const diasSemana = [];
+    for (let i = 0; i < 7; i++) {
+      const data = new Date(dataInicio);
+      data.setDate(dataInicio.getDate() + i);
+      diasSemana.push(data);
+    }
+    return /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-semibold" }, quadra.nome), /* @__PURE__ */ React.createElement("p", { className: "text-blue-100 text-sm" }, quadra.modalidade)), /* @__PURE__ */ React.createElement("div", { className: "text-right" }, /* @__PURE__ */ React.createElement("p", { className: "text-blue-100 text-sm" }, "Valores:"), quadra.usarTabelaDiferenciada ? /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("p", { className: "text-orange-200" }, "\u{1F305} R$ ", quadra.valorManha, "/h"), /* @__PURE__ */ React.createElement("p", { className: "text-blue-200" }, "\u{1F319} R$ ", quadra.valorNoite, "/h")) : /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold" }, "R$ ", quadra.valorHora, "/h")))), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("div", { className: "min-w-full" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-8 border-b border-gray-200 bg-gray-50" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 text-sm font-medium text-gray-700 border-r border-gray-200" }, "Hor\xE1rio"), diasSemana.map((data, index) => /* @__PURE__ */ React.createElement("div", { key: index, className: "p-3 text-center border-r border-gray-200 last:border-r-0" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, data.toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase()), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600" }, data.getDate().toString().padStart(2, "0"), "/", (data.getMonth() + 1).toString().padStart(2, "0"))))), horarios.map((horario, horarioIndex) => /* @__PURE__ */ React.createElement("div", { key: horario, className: `grid grid-cols-8 ${horarioIndex % 2 === 0 ? "bg-white" : "bg-gray-25"}` }, /* @__PURE__ */ React.createElement("div", { className: "p-3 text-sm font-medium text-gray-700 border-r border-b border-gray-200 bg-gray-50" }, horario), diasSemana.map((data, diaIndex) => {
+      const dataStr = data.toISOString().split("T")[0];
+      const horaInicio = horario;
+      const horaFim = `${(parseInt(horario.split(":")[0]) + 1).toString().padStart(2, "0")}:00`;
+      const reservasNoSlot = reservas.filter((r) => {
+        if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+        const reservaInicio = r.horaInicio;
+        const reservaFim = r.horaFim;
+        return reservaInicio < horaFim && reservaFim > horaInicio;
+      });
+      const reserva = reservasNoSlot[0];
+      const isOcupado = reservasNoSlot.length > 0;
+      const isHoje = dataStr === (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const isPast = data < (/* @__PURE__ */ new Date()).setHours(0, 0, 0, 0);
+      return /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          key: `${horario}-${diaIndex}`,
+          className: `p-2 border-r border-b border-gray-200 last:border-r-0 min-h-[60px] relative ${isPast ? "bg-gray-100" : isOcupado ? reserva.status === "Confirmada" ? "bg-green-100 border-l-4 border-green-500" : reserva.status === "Pendente" ? "bg-yellow-100 border-l-4 border-yellow-500" : "bg-red-100 border-l-4 border-red-500" : isHoje ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"} cursor-pointer transition-colors`,
+          title: isOcupado ? `${clientes.find((c) => c.id === reserva.clienteId)?.nome} - ${reserva.horaInicio} \xE0s ${reserva.horaFim}` : isPast ? "Hor\xE1rio passado" : "Dispon\xEDvel - Clique para reservar",
+          onClick: () => {
+            if (!isPast && !isOcupado) {
+              const horaInicioTime = /* @__PURE__ */ new Date(`2000-01-01T${horaInicio}`);
+              const horaFimTime = /* @__PURE__ */ new Date(`2000-01-01T${horaFim}`);
+              const minutos = (horaFimTime - horaInicioTime) / (1e3 * 60);
+              const horas = minutos / 60;
+              let valorPorHora;
+              if (quadra.usarTabelaDiferenciada) {
+                valorPorHora = calcularValorPorHorario(quadra, horaInicio);
+              } else {
+                valorPorHora = parseFloat(quadra.valorHora) || 0;
+              }
+              const valorCalculado = horas * valorPorHora;
+              setFormReserva({
+                ...formReserva,
+                quadraId: quadra.id.toString(),
+                data: dataStr,
+                horaInicio,
+                horaFim,
+                tipoReserva: "avulsa",
+                valor: valorCalculado.toFixed(2)
+              });
+              setModalType("reserva");
+              setShowModal(true);
+            }
+          }
+        },
+        isOcupado ? /* @__PURE__ */ React.createElement("div", { className: "text-xs" }, /* @__PURE__ */ React.createElement("div", { className: "font-medium text-gray-900 truncate" }, clientes.find((c) => c.id === reserva.clienteId)?.nome), /* @__PURE__ */ React.createElement("div", { className: "text-gray-600" }, reserva.horaInicio, " - ", reserva.horaFim), /* @__PURE__ */ React.createElement("div", { className: `text-xs px-1 py-0.5 rounded mt-1 inline-block ${reserva.status === "Confirmada" ? "bg-green-200 text-green-800" : reserva.status === "Pendente" ? "bg-yellow-200 text-yellow-800" : "bg-red-200 text-red-800"}` }, reserva.status)) : isPast ? /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 text-center pt-4" }, "\u23F0") : /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-400 text-center pt-4 opacity-0 group-hover:opacity-100" }, "+ Reservar"),
+        isHoje && !isOcupado && /* @__PURE__ */ React.createElement("div", { className: "absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" })
+      );
+    }))))), /* @__PURE__ */ React.createElement("div", { className: "bg-gray-50 p-4 border-t" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, (() => {
+      const semanaReservas = reservas.filter((r) => {
+        const dataReserva = new Date(r.data);
+        const dataInicio2 = new Date(dataRelatorio);
+        const dataFim = new Date(dataInicio2);
+        dataFim.setDate(dataInicio2.getDate() + 6);
+        return r.quadraId === quadra.id && dataReserva >= dataInicio2 && dataReserva <= dataFim;
+      });
+      const totalSlots = 7 * 17;
+      const slotsOcupados = semanaReservas.length;
+      const ocupacao = (slotsOcupados / totalSlots * 100).toFixed(1);
+      const receitaSemana = semanaReservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Reservas na Semana:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-blue-600 ml-1" }, slotsOcupados)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Taxa de Ocupa\xE7\xE3o:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-purple-600 ml-1" }, ocupacao, "%")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Receita Semana:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-green-600 ml-1" }, "R$ ", receitaSemana.toFixed(2))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { className: "text-gray-600" }, "Slots Dispon\xEDveis:"), /* @__PURE__ */ React.createElement("span", { className: "font-bold text-orange-600 ml-1" }, totalSlots - slotsOcupados)));
+    })())));
+  })), /* @__PURE__ */ React.createElement("div", { className: "bg-white rounded-lg shadow p-4" }, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-medium text-gray-900 mb-4" }, "Legenda"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 md:grid-cols-4 gap-4 text-sm" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-4 h-4 bg-green-100 border-l-4 border-green-500 rounded-sm" }), /* @__PURE__ */ React.createElement("span", null, "Confirmada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-4 h-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-sm" }), /* @__PURE__ */ React.createElement("span", null, "Pendente")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-4 h-4 bg-red-100 border-l-4 border-red-500 rounded-sm" }), /* @__PURE__ */ React.createElement("span", null, "Cancelada")), /* @__PURE__ */ React.createElement("div", { className: "flex items-center space-x-2" }, /* @__PURE__ */ React.createElement("div", { className: "w-4 h-4 bg-blue-50 border border-blue-200 rounded-sm" }), /* @__PURE__ */ React.createElement("span", null, "Dispon\xEDvel"))), /* @__PURE__ */ React.createElement("div", { className: "mt-4 p-3 bg-blue-50 border border-blue-200 rounded" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-700 mb-2" }, /* @__PURE__ */ React.createElement("strong", null, "\u{1F4A1} Dica:"), " Clique em qualquer hor\xE1rio dispon\xEDvel para fazer uma reserva r\xE1pida. Os hor\xE1rios de hoje aparecem destacados em azul com um ponto pulsante."), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "\u{1F4CA} Exporta\xE7\xE3o:"), " Use os bot\xF5es PDF e XLS para gerar relat\xF3rios mensais completos com: calend\xE1rio visual, estat\xEDsticas detalhadas, resumo por quadra e dados financeiros.")))), activeTab === "relatorios" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 md:space-y-6" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col gap-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h2", { className: "text-lg md:text-xl font-semibold text-gray-900" }, "Centro de Relat\xF3rios"), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-gray-600" }, "Gere relat\xF3rios detalhados para impress\xE3o e an\xE1lise")), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: imprimirRelatorio,
@@ -2116,16 +3268,45 @@ Detalhes: ${error.message}`);
     /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione a modalidade"),
     /* @__PURE__ */ React.createElement("option", { value: "Campo de Futebol" }, "Campo de Futebol"),
     /* @__PURE__ */ React.createElement("option", { value: "Quadra de Futsal" }, "Quadra de Futsal")
-  ), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "border border-blue-200 rounded-lg p-3 bg-blue-50" }, /* @__PURE__ */ React.createElement("label", { className: "flex items-center text-sm font-medium text-blue-800 mb-3" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "checkbox",
+      checked: formQuadra.usarTabelaDiferenciada,
+      onChange: (e) => setFormQuadra({ ...formQuadra, usarTabelaDiferenciada: e.target.checked }),
+      className: "mr-2"
+    }
+  ), "Usar valores diferenciados por per\xEDodo"), formQuadra.usarTabelaDiferenciada ? /* @__PURE__ */ React.createElement("div", { className: "space-y-3" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 border border-orange-200 rounded p-3" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-orange-800 mb-1" }, "\u{1F305} Manh\xE3/Tarde (06:00 - 17:59)"), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
+      step: "0.01",
+      placeholder: "Ex: 80.00",
+      value: formQuadra.valorManha,
+      onChange: (e) => setFormQuadra({ ...formQuadra, valorManha: e.target.value }),
+      className: "w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+    }
+  ), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-orange-600 mt-1" }, "Das 06:00 at\xE9 17:59")), /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded p-3" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-blue-800 mb-1" }, "\u{1F319} Noite (18:00 - 22:59)"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
+      placeholder: "Ex: 100.00",
+      value: formQuadra.valorNoite,
+      onChange: (e) => setFormQuadra({ ...formQuadra, valorNoite: e.target.value }),
+      className: "w-full px-3 py-2 border border-blue-300 rounded-md text-sm"
+    }
+  ), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-blue-600 mt-1" }, "Das 18:00 at\xE9 22:59"))) : /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Valor \xFAnico por hora"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
       placeholder: "Valor por hora",
       value: formQuadra.valorHora,
       onChange: (e) => setFormQuadra({ ...formQuadra, valorHora: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  ), /* @__PURE__ */ React.createElement("label", { className: "flex items-center text-sm" }, /* @__PURE__ */ React.createElement(
+  ))), /* @__PURE__ */ React.createElement("label", { className: "flex items-center text-sm" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "checkbox",
@@ -2226,7 +3407,7 @@ Detalhes: ${error.message}`);
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
       placeholder: "Selecione o m\xEAs"
     }
-  )), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-green-800 mb-3" }, "Dias da Semana"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [
+  ), /* @__PURE__ */ React.createElement("p", { className: "text-xs text-blue-600 mt-1" }, "\u{1F4A1} O per\xEDodo real ser\xE1 calculado a partir da primeira data dispon\xEDvel (30 dias corridos)")), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-green-800 mb-3" }, "Dias da Semana"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [
     { key: "segunda", label: "Segunda-feira" },
     { key: "terca", label: "Ter\xE7a-feira" },
     { key: "quarta", label: "Quarta-feira" },
@@ -2276,56 +3457,114 @@ Detalhes: ${error.message}`);
       min: "07:00",
       max: "23:00"
     }
-  )), formReserva.tipoReserva === "mensal" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "border border-purple-200 rounded-lg p-4 bg-purple-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-purple-800 mb-3" }, "\u{1F4B0} C\xE1lculo da Reserva Mensal"), (() => {
-    const valorMensal = calcularValorMensal();
-    const quadraSelecionada = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
-    const horaInicio = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
-    const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
-    const minutos = (horaFim - horaInicio) / (1e3 * 60);
-    const horas = minutos / 60;
-    const valorSessao = horas * (quadraSelecionada?.valorHora || 0);
-    const sessoesPorMes = Math.round(formReserva.diasSemana.length * 4.33);
-    const valorSemDesconto = valorSessao * sessoesPorMes;
-    const desconto = valorSemDesconto * 0.1;
-    return /* @__PURE__ */ React.createElement("div", { className: "text-sm text-purple-700 space-y-2" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-4" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Valor por sess\xE3o:"), /* @__PURE__ */ React.createElement("br", null), "R$ ", valorSessao.toFixed(2), " (", horas.toFixed(1), "h \xD7 R$ ", quadraSelecionada?.valorHora, ")"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Sess\xF5es/m\xEAs:"), /* @__PURE__ */ React.createElement("br", null), sessoesPorMes, " (", formReserva.diasSemana.length, " dias \xD7 4.33 semanas)")), /* @__PURE__ */ React.createElement("div", { className: "border-t border-purple-300 pt-2" }, /* @__PURE__ */ React.createElement("div", { className: "flex justify-between" }, /* @__PURE__ */ React.createElement("span", null, "Valor sem desconto:"), /* @__PURE__ */ React.createElement("span", null, "R$ ", valorSemDesconto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between text-green-600" }, /* @__PURE__ */ React.createElement("span", null, "Desconto mensal (10%):"), /* @__PURE__ */ React.createElement("span", null, "- R$ ", desconto.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "flex justify-between font-bold text-lg border-t border-purple-300 pt-1" }, /* @__PURE__ */ React.createElement("span", null, "Valor total mensal:"), /* @__PURE__ */ React.createElement("span", null, "R$ ", valorMensal.toFixed(2)))));
-  })()), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-orange-200 rounded-lg p-4 bg-orange-50" }, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-orange-800 mb-3" }, "\u{1F4B3} Op\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "N\xFAmero de Parcelas"), /* @__PURE__ */ React.createElement(
+  )), formReserva.tipoReserva === "mensal" && formReserva.mesReferencia && formReserva.quadraId && formReserva.diasSemana.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "border border-amber-200 rounded-lg p-4 bg-amber-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-amber-800 mb-3" }, "\u{1F4C5} Pr\xE9via do Per\xEDodo de Loca\xE7\xE3o (C\xE1lculo Inteligente)"), (() => {
+    const [ano, mes] = formReserva.mesReferencia.split("-");
+    const diasSemanaMap = {
+      "domingo": 0,
+      "segunda": 1,
+      "terca": 2,
+      "quarta": 3,
+      "quinta": 4,
+      "sexta": 5,
+      "sabado": 6
+    };
+    let primeiraDataDisponivel = null;
+    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+    const mesNome = new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const hoje2 = /* @__PURE__ */ new Date();
+    hoje2.setHours(0, 0, 0, 0);
+    for (let dia = 1; dia <= diasDoMes; dia++) {
+      const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const diaSemanaAtual = dataAtual.getDay();
+      if (dataAtual < hoje2) {
+        continue;
+      }
+      const diaCoincide = formReserva.diasSemana.some(
+        (diaSelecionado) => diasSemanaMap[diaSelecionado] === diaSemanaAtual
+      );
+      if (diaCoincide) {
+        primeiraDataDisponivel = dataAtual;
+        break;
+      }
+    }
+    if (primeiraDataDisponivel) {
+      const dataFinal = new Date(primeiraDataDisponivel);
+      dataFinal.setDate(dataFinal.getDate() + 29);
+      const periodoMensal = `${primeiraDataDisponivel.toLocaleDateString("pt-BR")} a ${dataFinal.toLocaleDateString("pt-BR")}`;
+      return /* @__PURE__ */ React.createElement("div", { className: "space-y-2 text-sm text-amber-700" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "M\xEAs selecionado:"), " ", mesNome.charAt(0).toUpperCase() + mesNome.slice(1)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Dias escolhidos:"), " ", formReserva.diasSemana.join(", ")), /* @__PURE__ */ React.createElement("div", { className: "text-green-700 font-medium bg-green-100 p-2 rounded" }, /* @__PURE__ */ React.createElement("strong", null, "\u{1F4C5} Per\xEDodo real calculado:"), " ", periodoMensal), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-amber-600" }, "\u2705 Sistema encontrou a primeira data dispon\xEDvel automaticamente", /* @__PURE__ */ React.createElement("br", null), "\u23F1\uFE0F Per\xEDodo de exatos 30 dias corridos a partir da primeira sess\xE3o", /* @__PURE__ */ React.createElement("br", null), "\u{1F50D} Verifica\xE7\xE3o autom\xE1tica de conflitos de hor\xE1rio"));
+    } else {
+      return /* @__PURE__ */ React.createElement("div", { className: "text-red-700 text-sm" }, "\u274C N\xE3o foi encontrada nenhuma data dispon\xEDvel no m\xEAs selecionado para os dias da semana escolhidos.");
+    }
+  })()), formReserva.tipoReserva === "mensal" && formReserva.valorMensal > 0 && /* @__PURE__ */ React.createElement("div", { className: "border border-purple-200 rounded-lg p-4 bg-purple-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-purple-800 mb-3" }, "\u{1F4B0} Valores Calculados (SEM DESCONTO)"), /* @__PURE__ */ React.createElement("div", { className: "space-y-2 text-sm text-purple-700" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Valor total mensal:"), " R$ ", formReserva.valorMensal.toFixed(2)), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-purple-600 mb-1" }, "N\xFAmero de Parcelas:"), /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formReserva.numeroParcelas,
       onChange: (e) => setFormReserva({ ...formReserva, numeroParcelas: parseInt(e.target.value) }),
-      className: "w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+      className: "w-full px-2 py-1 border border-purple-300 rounded text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: 1 }, "\xC0 vista (1x)"),
-    /* @__PURE__ */ React.createElement("option", { value: 2 }, "2x sem juros"),
-    /* @__PURE__ */ React.createElement("option", { value: 3 }, "3x sem juros"),
-    /* @__PURE__ */ React.createElement("option", { value: 4 }, "4x sem juros")
-  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "Valor da Parcela"), /* @__PURE__ */ React.createElement("div", { className: "px-3 py-2 bg-orange-100 border border-orange-300 rounded-md text-sm font-medium text-orange-800" }, formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 ? `R$ ${calcularParcelas(calcularValorMensal(), formReserva.numeroParcelas).toFixed(2)}` : "R$ 0,00"))), formReserva.numeroParcelas > 1 && /* @__PURE__ */ React.createElement("div", { className: "mt-3" }, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-orange-700 mb-1" }, "Vencimento da 1\xAA Parcela"), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "date",
-      value: formReserva.dataVencimentoPrimeiraParcela,
-      onChange: (e) => setFormReserva({ ...formReserva, dataVencimentoPrimeiraParcela: e.target.value }),
-      className: "w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+    /* @__PURE__ */ React.createElement("option", { value: 1 }, "1x (\xE0 vista)"),
+    /* @__PURE__ */ React.createElement("option", { value: 2 }, "2x"),
+    /* @__PURE__ */ React.createElement("option", { value: 3 }, "3x"),
+    /* @__PURE__ */ React.createElement("option", { value: 4 }, "4x")
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-xs text-purple-600 mb-1" }, "Valor por Parcela:"), /* @__PURE__ */ React.createElement("div", { className: "px-2 py-1 bg-purple-100 rounded text-sm font-medium" }, "R$ ", formReserva.valorParcela?.toFixed(2) || "0.00"))), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-purple-600 bg-purple-100 p-2 rounded" }, "\u{1F4CA} C\xE1lculo: ", formReserva.diasSemana.length, " sess\xF5es/semana \xD7 4.33 semanas/m\xEAs = aprox. ", Math.round(formReserva.diasSemana.length * 4.33), " sess\xF5es", /* @__PURE__ */ React.createElement("br", null), "\u{1F4A1} Valores aplicados conforme tabela da quadra (manh\xE3/tarde ou noite)"))), formReserva.tipoReserva === "avulsa" && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800 mb-3" }, "\u{1F4B0} C\xE1lculo Autom\xE1tico do Valor"), (() => {
+    const quadra = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
+    if (!quadra || formReserva.horaInicio >= formReserva.horaFim) {
+      return /* @__PURE__ */ React.createElement("div", { className: "text-red-700 text-sm" }, "\u26A0\uFE0F Selecione uma quadra e hor\xE1rios v\xE1lidos");
     }
-  ))), formReserva.tipoReserva === "avulsa" && /* @__PURE__ */ React.createElement(
+    const horaInicio = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaInicio}`);
+    const horaFim = /* @__PURE__ */ new Date(`2000-01-01T${formReserva.horaFim}`);
+    const minutos = (horaFim - horaInicio) / (1e3 * 60);
+    const horas = minutos / 60;
+    let valorPorHora, periodo;
+    if (quadra.usarTabelaDiferenciada) {
+      const hora = parseInt(formReserva.horaInicio.split(":")[0]);
+      if (hora >= 6 && hora < 18) {
+        valorPorHora = parseFloat(quadra.valorManha) || 0;
+        periodo = "Manh\xE3/Tarde (06:00-17:59)";
+      } else if (hora >= 18 && hora < 23) {
+        valorPorHora = parseFloat(quadra.valorNoite) || 0;
+        periodo = "Noite (18:00-22:59)";
+      } else {
+        valorPorHora = parseFloat(quadra.valorHora) || 0;
+        periodo = "Hor\xE1rio especial";
+      }
+    } else {
+      valorPorHora = parseFloat(quadra.valorHora) || 0;
+      periodo = "Valor \xFAnico";
+    }
+    const valorTotal = horas * valorPorHora;
+    return /* @__PURE__ */ React.createElement("div", { className: "space-y-2 text-sm text-green-700" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Quadra:"), " ", quadra.nome), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Per\xEDodo:"), " ", periodo), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Dura\xE7\xE3o:"), " ", horas, " hora", horas !== 1 ? "s" : "", " (", minutos, " minutos)"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Valor por hora:"), " R$ ", valorPorHora.toFixed(2)), /* @__PURE__ */ React.createElement("div", { className: "text-green-800 font-bold bg-green-100 p-2 rounded" }, /* @__PURE__ */ React.createElement("strong", null, "\u{1F4B0} Valor Total: R$ ", valorTotal.toFixed(2))), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-600" }, "\u2705 Valor calculado automaticamente conforme tabela da quadra"));
+  })()), (formReserva.tipoReserva === "avulsa" || editingItem) && /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Valor Total"), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
-      placeholder: "Valor (opcional)",
+      step: "0.01",
+      placeholder: "Valor total",
       value: formReserva.valor,
       onChange: (e) => setFormReserva({ ...formReserva, valor: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  ), formReserva.tipoReserva === "avulsa" && formReserva.data && formReserva.quadraId && /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "Disponibilidade:"), (() => {
-    const reservasNoDia = reservas.filter(
-      (r) => r.data === formReserva.data && r.quadraId === parseInt(formReserva.quadraId) && (!editingItem || r.id !== editingItem.id)
-    );
-    const quadraSelecionada = quadras.find((q) => q.id === parseInt(formReserva.quadraId));
-    return /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", null, "\u2022 Quadra: ", /* @__PURE__ */ React.createElement("strong", null, quadraSelecionada?.nome)), /* @__PURE__ */ React.createElement("p", null, "\u2022 Data: ", /* @__PURE__ */ React.createElement("strong", null, (/* @__PURE__ */ new Date(formReserva.data + "T00:00:00")).toLocaleDateString("pt-BR"))), /* @__PURE__ */ React.createElement("p", null, "\u2022 Reservas no dia: ", /* @__PURE__ */ React.createElement("strong", null, reservasNoDia.length, "/6")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Hor\xE1rio de funcionamento: ", /* @__PURE__ */ React.createElement("strong", null, "06:00 \xE0s 23:00")), /* @__PURE__ */ React.createElement("p", null, "\u2022 Intervalo entre reservas: ", /* @__PURE__ */ React.createElement("strong", null, "m\xEDnimo 5 minutos")), reservasNoDia.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2" }, /* @__PURE__ */ React.createElement("p", { className: "font-medium" }, "Hor\xE1rios ocupados:"), /* @__PURE__ */ React.createElement("div", { className: "space-y-1" }, reservasNoDia.sort((a, b) => a.horaInicio.localeCompare(b.horaInicio)).map((r, idx) => {
-      const cliente = clientes.find((c) => c.id === r.clienteId);
-      return /* @__PURE__ */ React.createElement("div", { key: idx, className: "text-xs bg-white p-2 rounded border" }, /* @__PURE__ */ React.createElement("strong", null, r.horaInicio, " - ", r.horaFim), " \u2022 ", cliente?.nome);
-    }))), reservasNoDia.length >= 6 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700" }, /* @__PURE__ */ React.createElement("strong", null, "\u26A0\uFE0F Limite atingido!"), " Esta quadra j\xE1 possui 6 reservas neste dia."));
-  })())), formReserva.tipoReserva === "avulsa" && /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Valor Pago"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
+      placeholder: "Valor pago",
+      value: formReserva.valorPago,
+      onChange: (e) => setFormReserva({ ...formReserva, valorPago: e.target.value }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  ))), formReserva.tipoReserva === "mensal" && !editingItem && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "block text-sm font-medium text-gray-700 mb-1" }, "Valor Pago na Reserva"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "number",
+      step: "0.01",
+      placeholder: "0.00",
+      value: formReserva.valorPago,
+      onChange: (e) => setFormReserva({ ...formReserva, valorPago: e.target.value }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formReserva.status,
@@ -2338,95 +3577,19 @@ Detalhes: ${error.message}`);
   ), /* @__PURE__ */ React.createElement(
     "select",
     {
-      value: formReserva.statusPagamento,
-      onChange: (e) => {
-        const novoStatus = e.target.value;
-        setFormReserva({
-          ...formReserva,
-          statusPagamento: novoStatus,
-          // Auto-ajustar valorPago baseado no status
-          valorPago: novoStatus === "Pago" && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
-          dataPagamento: novoStatus !== "Pendente" && !formReserva.dataPagamento ? (/* @__PURE__ */ new Date()).toISOString().split("T")[0] : formReserva.dataPagamento
-        });
-      },
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
-    },
-    /* @__PURE__ */ React.createElement("option", { value: "Pendente" }, "Pendente"),
-    /* @__PURE__ */ React.createElement("option", { value: "Parcial" }, "Parcial"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pago" }, "Pago")
-  )), formReserva.tipoReserva === "avulsa" && formReserva.statusPagamento !== "Pendente" && /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 border border-green-200 rounded-lg p-3 space-y-3" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800" }, "Informa\xE7\xF5es de Pagamento"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "number",
-      step: "0.01",
-      placeholder: "Valor pago",
-      value: formReserva.valorPago,
-      onChange: (e) => {
-        const valorPago = parseFloat(e.target.value) || 0;
-        const valorTotal = parseFloat(formReserva.valor) || 0;
-        let novoStatus = "Pendente";
-        if (valorPago === 0) {
-          novoStatus = "Pendente";
-        } else if (valorPago >= valorTotal) {
-          novoStatus = "Pago";
-        } else {
-          novoStatus = "Parcial";
-        }
-        setFormReserva({
-          ...formReserva,
-          valorPago: e.target.value,
-          statusPagamento: novoStatus
-        });
-      },
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
-    }
-  ), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "date",
-      value: formReserva.dataPagamento,
-      onChange: (e) => setFormReserva({ ...formReserva, dataPagamento: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
-    }
-  )), /* @__PURE__ */ React.createElement(
-    "select",
-    {
       value: formReserva.formaPagamento,
       onChange: (e) => setFormReserva({ ...formReserva, formaPagamento: e.target.value }),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
     /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
     /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
-    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
+    /* @__PURE__ */ React.createElement("option", { value: "PIX" }, "PIX"),
     /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o"),
-    /* @__PURE__ */ React.createElement("option", { value: "Cheque" }, "Cheque")
-  ), formReserva.valorPago && formReserva.valor && /* @__PURE__ */ React.createElement("div", { className: "text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo:"), " R$ ", ((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2), parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && " \u2713 Pago")), formReserva.tipoReserva === "mensal" && /* @__PURE__ */ React.createElement("div", { className: "border border-green-200 rounded-lg p-4 bg-green-50" }, /* @__PURE__ */ React.createElement("h4", { className: "text-sm font-medium text-green-800 mb-3" }, "\u{1F4B0} Pagamento Inicial (Opcional)"), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "number",
-      step: "0.01",
-      placeholder: "Valor pago na reserva",
-      value: formReserva.valorPago,
-      onChange: (e) => setFormReserva({ ...formReserva, valorPago: e.target.value }),
-      className: "w-full px-3 py-2 border border-green-300 rounded-md text-sm"
-    }
-  )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
-    "select",
-    {
-      value: formReserva.formaPagamento,
-      onChange: (e) => setFormReserva({ ...formReserva, formaPagamento: e.target.value }),
-      className: "w-full px-3 py-2 border border-green-300 rounded-md text-sm"
-    },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
-    /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
-    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
-    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o")
-  ))), formReserva.valorPago && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "mt-2 text-xs text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Saldo restante:"), " R$ ", (calcularValorMensal() - parseFloat(formReserva.valorPago || 0)).toFixed(2))), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia")
+  )), /* @__PURE__ */ React.createElement(
     "textarea",
     {
-      placeholder: formReserva.tipoReserva === "mensal" ? "Observa\xE7\xF5es sobre a reserva mensal (opcional)" : "Observa\xE7\xF5es (opcional)",
+      placeholder: "Observa\xE7\xF5es",
       value: formReserva.tipoReserva === "mensal" ? formReserva.observacoesMensal : formReserva.observacoes,
       onChange: (e) => {
         if (formReserva.tipoReserva === "mensal") {
@@ -2435,8 +3598,7 @@ Detalhes: ${error.message}`);
           setFormReserva({ ...formReserva, observacoes: e.target.value });
         }
       },
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
-      rows: "3"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
     }
   ), /* @__PURE__ */ React.createElement(
     "button",
@@ -2445,7 +3607,7 @@ Detalhes: ${error.message}`);
       className: "w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
     },
     editingItem ? "Atualizar" : "Adicionar"
-  )), modalType === "admin" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4" }, /* @__PURE__ */ React.createElement("div", { className: "flex" }, /* @__PURE__ */ React.createElement(Shield, { className: "h-4 w-4 text-orange-500 mr-2 mt-0.5" }), /* @__PURE__ */ React.createElement("p", { className: "text-sm text-orange-700" }, /* @__PURE__ */ React.createElement("strong", null, "Importante:"), " Mantenha as credenciais seguras. Evite senhas simples."))), /* @__PURE__ */ React.createElement(
+  )), modalType === "admin" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -2458,28 +3620,28 @@ Detalhes: ${error.message}`);
     "input",
     {
       type: "text",
-      placeholder: "Nome de usu\xE1rio (login)",
+      placeholder: "Nome de usu\xE1rio",
       value: formAdmin.usuario,
-      onChange: (e) => setFormAdmin({ ...formAdmin, usuario: e.target.value.toLowerCase().replace(/\s+/g, "") }),
+      onChange: (e) => setFormAdmin({ ...formAdmin, usuario: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
   ), /* @__PURE__ */ React.createElement("div", { className: "relative" }, /* @__PURE__ */ React.createElement(
     "input",
     {
-      type: showPassword ? "text" : "password",
-      placeholder: "Senha de acesso",
+      type: showAdminPassword ? "text" : "password",
+      placeholder: "Senha",
       value: formAdmin.senha,
       onChange: (e) => setFormAdmin({ ...formAdmin, senha: e.target.value }),
-      className: "w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 pr-12 border border-gray-300 rounded-md text-sm"
     }
   ), /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
-      onClick: () => setShowPassword(!showPassword),
-      className: "absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+      onClick: () => setShowAdminPassword(!showAdminPassword),
+      className: "absolute inset-y-0 right-0 flex items-center pr-4 text-gray-500 hover:text-gray-700"
     },
-    showPassword ? /* @__PURE__ */ React.createElement(EyeOff, { className: "h-4 w-4" }) : /* @__PURE__ */ React.createElement(Eye, { className: "h-4 w-4" })
+    showAdminPassword ? /* @__PURE__ */ React.createElement(EyeOff, { className: "h-5 w-5" }) : /* @__PURE__ */ React.createElement(Eye, { className: "h-5 w-5" })
   )), /* @__PURE__ */ React.createElement(
     "select",
     {
@@ -2491,95 +3653,94 @@ Detalhes: ${error.message}`);
     /* @__PURE__ */ React.createElement("option", { value: "Administrador Geral" }, "Administrador Geral"),
     /* @__PURE__ */ React.createElement("option", { value: "Gerente de Opera\xE7\xF5es" }, "Gerente de Opera\xE7\xF5es"),
     /* @__PURE__ */ React.createElement("option", { value: "Secret\xE1rio do Clube" }, "Secret\xE1rio do Clube"),
-    /* @__PURE__ */ React.createElement("option", { value: "Assistente Administrativo" }, "Assistente Administrativo"),
-    /* @__PURE__ */ React.createElement("option", { value: "Coordenador de Quadras" }, "Coordenador de Quadras")
-  ), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600 bg-gray-50 p-3 rounded" }, /* @__PURE__ */ React.createElement("p", null, /* @__PURE__ */ React.createElement("strong", null, "Dicas de Seguran\xE7a:")), /* @__PURE__ */ React.createElement("ul", { className: "mt-1 space-y-1" }, /* @__PURE__ */ React.createElement("li", null, "\u2022 Use senhas com pelo menos 8 caracteres"), /* @__PURE__ */ React.createElement("li", null, "\u2022 Combine letras, n\xFAmeros e s\xEDmbolos"), /* @__PURE__ */ React.createElement("li", null, "\u2022 Evite informa\xE7\xF5es pessoais \xF3bvias"), /* @__PURE__ */ React.createElement("li", null, "\u2022 Altere a senha regularmente"))), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "Assistente Administrativo" }, "Assistente Administrativo")
+  ), /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: adicionarAdmin,
       className: "w-full bg-orange-600 text-white py-2 rounded-md hover:bg-orange-700 text-sm"
     },
-    editingItem ? "Atualizar Administrador" : "Adicionar Administrador"
-  )), modalType === "faturamento" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4 max-h-96 overflow-y-auto" }, /* @__PURE__ */ React.createElement("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-blue-700" }, /* @__PURE__ */ React.createElement("strong", null, "Faturamento:"), " Registre todas as informa\xE7\xF5es da loca\xE7\xE3o conforme orienta\xE7\xF5es.")), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
+    editingItem ? "Atualizar" : "Adicionar"
+  )), modalType === "faturamento" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
-      placeholder: "Data",
       value: formFaturamento.data,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, data: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
   ), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
-      placeholder: "Cliente",
+      placeholder: "Nome do cliente",
       value: formFaturamento.cliente,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, cliente: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
-    }
-  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      type: "text",
-      placeholder: "M\xEAs Loca\xE7\xE3o (ex: JAN/2025)",
-      value: formFaturamento.mesLocacao,
-      onChange: (e) => setFormFaturamento({ ...formFaturamento, mesLocacao: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
   ), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
-      placeholder: "Hora",
+      placeholder: "M\xEAs da loca\xE7\xE3o",
+      value: formFaturamento.mesLocacao,
+      onChange: (e) => setFormFaturamento({ ...formFaturamento, mesLocacao: e.target.value }),
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      placeholder: "Hor\xE1rio (ex: 18:00-20:00)",
       value: formFaturamento.hora,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, hora: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formFaturamento.tipoQuadra,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, tipoQuadra: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Tipo de Quadra"),
-    /* @__PURE__ */ React.createElement("option", { value: "Campo de Futebol" }, "Campo de Futebol"),
-    /* @__PURE__ */ React.createElement("option", { value: "Quadra de Futsal" }, "Quadra de Futsal")
-  ), /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Tipo de quadra"),
+    quadras.map((quadra) => /* @__PURE__ */ React.createElement("option", { key: quadra.id, value: quadra.nome }, quadra.nome))
+  )), /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formFaturamento.tipoLocacao,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, tipoLocacao: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Tipo de Loca\xE7\xE3o"),
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Tipo de loca\xE7\xE3o"),
+    /* @__PURE__ */ React.createElement("option", { value: "Avulsa" }, "Avulsa"),
     /* @__PURE__ */ React.createElement("option", { value: "Mensal" }, "Mensal"),
-    /* @__PURE__ */ React.createElement("option", { value: "Avulso" }, "Avulso")
-  )), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "Trimestral" }, "Trimestral"),
+    /* @__PURE__ */ React.createElement("option", { value: "Anual" }, "Anual")
+  ), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
-      placeholder: "Recibo de Pagamento N\xBA",
+      placeholder: "Recibo de pagamento",
       value: formFaturamento.reciboPagamento,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, reciboPagamento: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
   ), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "date",
-      placeholder: "Data da Loca\xE7\xE3o",
+      placeholder: "Data da loca\xE7\xE3o",
       value: formFaturamento.dataLocacao,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, dataLocacao: e.target.value }),
-      className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     }
-  )), /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
       step: "0.01",
-      placeholder: "Valor da Loca\xE7\xE3o",
+      placeholder: "Valor total",
       value: formFaturamento.valor,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, valor: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -2591,17 +3752,17 @@ Detalhes: ${error.message}`);
       onChange: (e) => setFormFaturamento({ ...formFaturamento, formaPagamento: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de Pagamento"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
     /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
-    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
-    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o")
-  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-3" }, /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("option", { value: "PIX" }, "PIX"),
+    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o"),
+    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia")
+  ), /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-2 gap-2" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "number",
       step: "0.01",
-      placeholder: "Valor Recebido (inicial)",
+      placeholder: "Valor recebido",
       value: formFaturamento.valorRecebido,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, valorRecebido: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -2611,7 +3772,7 @@ Detalhes: ${error.message}`);
     {
       type: "number",
       step: "0.01",
-      placeholder: "Valor Real Recebido",
+      placeholder: "Valor real recebido",
       value: formFaturamento.valorRealRecebido,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, valorRealRecebido: e.target.value }),
       className: "px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -2622,8 +3783,7 @@ Detalhes: ${error.message}`);
       placeholder: "Observa\xE7\xF5es",
       value: formFaturamento.observacoes,
       onChange: (e) => setFormFaturamento({ ...formFaturamento, observacoes: e.target.value }),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
-      rows: "3"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
     }
   ), /* @__PURE__ */ React.createElement(
     "button",
@@ -2631,30 +3791,26 @@ Detalhes: ${error.message}`);
       onClick: adicionarFaturamento,
       className: "w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 text-sm"
     },
-    editingItem ? "Atualizar Faturamento" : "Registrar Faturamento"
-  )), modalType === "recebimento" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement("div", { className: "bg-green-50 border border-green-200 rounded-lg p-3" }, /* @__PURE__ */ React.createElement("p", { className: "text-sm text-green-700" }, /* @__PURE__ */ React.createElement("strong", null, "Recebimento:"), " Registre valores recebidos posteriormente ao faturamento.")), /* @__PURE__ */ React.createElement(
+    editingItem ? "Atualizar" : "Adicionar"
+  )), modalType === "recebimento" && /* @__PURE__ */ React.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ React.createElement(
     "select",
     {
       value: formRecebimento.faturamentoId,
       onChange: (e) => setFormRecebimento({ ...formRecebimento, faturamentoId: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione o Item Financeiro"),
-    faturamentos.filter((f) => f.valorEmAberto > 0).map((faturamento) => /* @__PURE__ */ React.createElement("option", { key: `fat_${faturamento.id}`, value: `fat_${faturamento.id}` }, "[FATURAMENTO] ", faturamento.cliente, " - ", faturamento.mesLocacao, " (R$ ", faturamento.valorEmAberto?.toFixed(2), " em aberto)")),
-    reservas.filter((r) => {
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Selecione o item"),
+    /* @__PURE__ */ React.createElement("optgroup", { label: "Faturamentos em Aberto" }, faturamentos.filter((f) => (f.valorEmAberto || 0) > 0).map((faturamento) => /* @__PURE__ */ React.createElement("option", { key: `fat_${faturamento.id}`, value: `fat_${faturamento.id}` }, faturamento.cliente, " - R$ ", (faturamento.valorEmAberto || 0).toFixed(2), " (Faturamento)"))),
+    /* @__PURE__ */ React.createElement("optgroup", { label: "Reservas Pendentes" }, reservas.filter((r) => {
       const valorTotal = r.valor || 0;
       const valorPago = r.valorPago || 0;
-      const valorEmAberto = Math.max(0, valorTotal - valorPago);
-      return valorEmAberto > 0;
+      return Math.max(0, valorTotal - valorPago) > 0;
     }).map((reserva) => {
       const cliente = clientes.find((c) => c.id === reserva.clienteId);
       const quadra = quadras.find((q) => q.id === reserva.quadraId);
-      const valorTotal = reserva.valor || 0;
-      const valorPago = reserva.valorPago || 0;
-      const valorEmAberto = Math.max(0, valorTotal - valorPago);
-      const statusStr = valorPago === 0 ? "EM ABERTO" : "PARCIAL";
-      return /* @__PURE__ */ React.createElement("option", { key: `res_${reserva.id}`, value: `res_${reserva.id}` }, "[RESERVA-", statusStr, "] ", cliente?.nome, " - ", quadra?.nome, " ", new Date(reserva.data).toLocaleDateString("pt-BR"), " (R$ ", valorEmAberto.toFixed(2), " em aberto)");
-    })
+      const valorEmAberto = Math.max(0, (reserva.valor || 0) - (reserva.valorPago || 0));
+      return /* @__PURE__ */ React.createElement("option", { key: `res_${reserva.id}`, value: `res_${reserva.id}` }, cliente?.nome, " - ", quadra?.nome, " - R$ ", valorEmAberto.toFixed(2), " (Reserva)");
+    }))
   ), /* @__PURE__ */ React.createElement(
     "input",
     {
@@ -2668,7 +3824,7 @@ Detalhes: ${error.message}`);
     {
       type: "number",
       step: "0.01",
-      placeholder: "Valor Recebido",
+      placeholder: "Valor recebido",
       value: formRecebimento.valor,
       onChange: (e) => setFormRecebimento({ ...formRecebimento, valor: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -2680,19 +3836,18 @@ Detalhes: ${error.message}`);
       onChange: (e) => setFormRecebimento({ ...formRecebimento, formaPagamento: e.target.value }),
       className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
     },
-    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de Pagamento"),
-    /* @__PURE__ */ React.createElement("option", { value: "Pix" }, "Pix"),
+    /* @__PURE__ */ React.createElement("option", { value: "" }, "Forma de pagamento"),
     /* @__PURE__ */ React.createElement("option", { value: "Dinheiro" }, "Dinheiro"),
-    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia"),
-    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o")
+    /* @__PURE__ */ React.createElement("option", { value: "PIX" }, "PIX"),
+    /* @__PURE__ */ React.createElement("option", { value: "Cart\xE3o" }, "Cart\xE3o"),
+    /* @__PURE__ */ React.createElement("option", { value: "Transfer\xEAncia" }, "Transfer\xEAncia")
   ), /* @__PURE__ */ React.createElement(
     "textarea",
     {
       placeholder: "Observa\xE7\xF5es",
       value: formRecebimento.observacoes,
       onChange: (e) => setFormRecebimento({ ...formRecebimento, observacoes: e.target.value }),
-      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm",
-      rows: "3"
+      className: "w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
     }
   ), /* @__PURE__ */ React.createElement(
     "button",

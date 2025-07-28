@@ -11,6 +11,7 @@ const QuadraManagementSystem = () => {
   const [loginForm, setLoginForm] = useState({ usuario: '', senha: '' });
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   
   // Usuários administrativos (gerenciáveis)
   const [usuariosAdmin, setUsuariosAdmin] = useStoredState('usuariosAdmin', [
@@ -21,8 +22,26 @@ const QuadraManagementSystem = () => {
   
   // Estados para dados
   const [quadras, setQuadras] = useStoredState('quadras', [
-    { id: 1, nome: 'Campo de Futebol 1', modalidade: 'Campo de Futebol', valorHora: 100, ativa: true },
-    { id: 2, nome: 'Quadra de Futsal 1', modalidade: 'Quadra de Futsal', valorHora: 80, ativa: true }
+    { 
+      id: 1, 
+      nome: 'Campo de Futebol 1', 
+      modalidade: 'Campo de Futebol', 
+      valorHora: 100, 
+      ativa: true,
+      usarTabelaDiferenciada: false,
+      valorManha: 80,
+      valorNoite: 100
+    },
+    { 
+      id: 2, 
+      nome: 'Quadra de Futsal 1', 
+      modalidade: 'Quadra de Futsal', 
+      valorHora: 80, 
+      ativa: true,
+      usarTabelaDiferenciada: false,
+      valorManha: 60,
+      valorNoite: 80
+    }
   ]);
   
   const [clientes, setClientes] = useStoredState('clientes', [
@@ -47,6 +66,7 @@ const QuadraManagementSystem = () => {
   const [quadraImpressao, setQuadraImpressao] = useState('');
   const [semanaImpressao, setSemanaImpressao] = useState(new Date().toISOString().slice(0, 10));
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [clientesExpandidos, setClientesExpandidos] = useState({});
   
   // Estados específicos para Relatórios
   const [tipoRelatorio, setTipoRelatorio] = useState('financeiro-mensal');
@@ -55,7 +75,15 @@ const QuadraManagementSystem = () => {
   const [anoRelatorio, setAnoRelatorio] = useState(new Date().getFullYear().toString());
 
   // Formulários
-  const [formQuadra, setFormQuadra] = useState({ nome: '', modalidade: '', valorHora: '', ativa: true });
+  const [formQuadra, setFormQuadra] = useState({ 
+    nome: '', 
+    modalidade: '', 
+    valorHora: '', 
+    ativa: true,
+    usarTabelaDiferenciada: false,
+    valorManha: '', // 06:00 - 17:59
+    valorNoite: ''  // 18:00 - 22:59
+  });
   const [formCliente, setFormCliente] = useState({ nome: '', telefone: '', email: '' });
   const [formReserva, setFormReserva] = useState({
     quadraId: '',
@@ -105,18 +133,47 @@ const QuadraManagementSystem = () => {
     observacoes: ''
   });
 
+  // Função para calcular valor por horário baseado no período (CORRIGIDA)
+  const calcularValorPorHorario = (quadra, horaInicio) => {
+    if (!quadra.usarTabelaDiferenciada) {
+      return parseFloat(quadra.valorHora) || 0;
+    }
+    
+    // Converter hora para número para comparação
+    const hora = parseInt(horaInicio.split(':')[0]);
+    
+    // Manhã/Tarde: 06:00 - 17:59 (6h às 17h59) = valorManha
+    // Noite: 18:00 - 22:59 (18h às 22h59) = valorNoite
+    if (hora >= 6 && hora < 18) {
+      return parseFloat(quadra.valorManha) || parseFloat(quadra.valorHora) || 0;
+    } else if (hora >= 18 && hora < 23) {
+      return parseFloat(quadra.valorNoite) || parseFloat(quadra.valorHora) || 0;
+    } else {
+      // Horário fora do funcionamento, usar valor padrão
+      return parseFloat(quadra.valorHora) || parseFloat(quadra.valorManha) || 0;
+    }
+  };
+
   // Funções para Quadras
   const adicionarQuadra = () => {
     if (editingItem) {
       setQuadras(quadras.map(q => q.id === editingItem.id ? 
-        { ...formQuadra, id: editingItem.id, valorHora: parseFloat(formQuadra.valorHora) } : q
+        { 
+          ...formQuadra, 
+          id: editingItem.id, 
+          valorHora: parseFloat(formQuadra.valorHora) || 0,
+          valorManha: parseFloat(formQuadra.valorManha) || 0,
+          valorNoite: parseFloat(formQuadra.valorNoite) || 0
+        } : q
       ));
       registrarAtividade('QUADRA_EDITADA', `Quadra "${formQuadra.nome}" editada`);
     } else {
       const novaQuadra = {
         id: Date.now(),
         ...formQuadra,
-        valorHora: parseFloat(formQuadra.valorHora)
+        valorHora: parseFloat(formQuadra.valorHora) || 0,
+        valorManha: parseFloat(formQuadra.valorManha) || 0,
+        valorNoite: parseFloat(formQuadra.valorNoite) || 0
       };
       setQuadras([...quadras, novaQuadra]);
       registrarAtividade('QUADRA_CRIADA', `Nova quadra "${formQuadra.nome}" criada`);
@@ -130,7 +187,10 @@ const QuadraManagementSystem = () => {
       nome: quadra.nome,
       modalidade: quadra.modalidade,
       valorHora: quadra.valorHora.toString(),
-      ativa: quadra.ativa
+      ativa: quadra.ativa,
+      usarTabelaDiferenciada: quadra.usarTabelaDiferenciada || false,
+      valorManha: (quadra.valorManha || '').toString(),
+      valorNoite: (quadra.valorNoite || '').toString()
     });
     setModalType('quadra');
     setShowModal(true);
@@ -363,7 +423,7 @@ const QuadraManagementSystem = () => {
     }
   };
 
-  // Função para calcular valor mensal
+  // Função para calcular valor mensal SEM DESCONTO (CORRIGIDA)
   const calcularValorMensal = () => {
     if (!formReserva.quadraId || !formReserva.horaInicio || !formReserva.horaFim || formReserva.diasSemana.length === 0) {
       return 0;
@@ -378,19 +438,32 @@ const QuadraManagementSystem = () => {
     const minutos = (horaFim - horaInicio) / (1000 * 60);
     const horas = minutos / 60;
     
-    // Valor por sessão
-    const valorSessao = horas * quadra.valorHora;
+    // Calcular valor por sessão baseado no período (SEM DESCONTO)
+    let valorPorHora;
+    if (quadra.usarTabelaDiferenciada) {
+      // Usar a função corrigida para calcular valor por horário
+      const hora = parseInt(formReserva.horaInicio.split(':')[0]);
+      if (hora >= 6 && hora < 18) {
+        valorPorHora = parseFloat(quadra.valorManha) || 0;
+      } else if (hora >= 18 && hora < 23) {
+        valorPorHora = parseFloat(quadra.valorNoite) || 0;
+      } else {
+        valorPorHora = parseFloat(quadra.valorHora) || 0;
+      }
+    } else {
+      valorPorHora = parseFloat(quadra.valorHora) || 0;
+    }
+    
+    const valorPorSessao = horas * valorPorHora;
     
     // Calcular número de sessões no mês (aproximadamente 4.33 semanas por mês)
     const sessoesPorSemana = formReserva.diasSemana.length;
     const sessoesPorMes = Math.round(sessoesPorSemana * 4.33);
     
-    const valorMensal = valorSessao * sessoesPorMes;
+    // Valor total mensal SEM DESCONTO
+    const valorMensal = valorPorSessao * sessoesPorMes;
     
-    // Aplicar desconto para reservas mensais (10% de desconto)
-    const valorComDesconto = valorMensal * 0.9;
-    
-    return valorComDesconto;
+    return valorMensal;
   };
 
   // Função para calcular valor das parcelas
@@ -399,11 +472,10 @@ const QuadraManagementSystem = () => {
     return valorTotal / numeroParcelas;
   };
 
-  // Função para gerar reservas mensais
+  // Função para gerar reservas mensais com cálculo inteligente do período
   const gerarReservasMensais = (dadosReserva) => {
     const reservasGeradas = [];
     const [ano, mes] = dadosReserva.mesReferencia.split('-');
-    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
     
     // Mapeamento dos dias da semana
     const diasSemanaMap = {
@@ -416,9 +488,62 @@ const QuadraManagementSystem = () => {
       'sabado': 6
     };
     
-    // Gerar reservas para cada dia do mês que coincida com os dias selecionados
+    // PASSO 1: Encontrar a PRIMEIRA data disponível no mês selecionado (a partir de hoje)
+    let primeiraDataDisponivel = null;
+    const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+    
+    // Data de hoje para não buscar datas passadas
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    // Buscar do primeiro ao último dia do mês, mas só datas futuras ou de hoje
     for (let dia = 1; dia <= diasDoMes; dia++) {
       const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+      const diaSemanaAtual = dataAtual.getDay();
+      
+      // Pular datas que já passaram
+      if (dataAtual < hoje) {
+        continue;
+      }
+      
+      // Verificar se este dia coincide com algum dos dias selecionados
+      const diaCoincide = dadosReserva.diasSemana.some(diaSelecionado => 
+        diasSemanaMap[diaSelecionado] === diaSemanaAtual
+      );
+      
+      if (diaCoincide) {
+        const dataFormatada = dataAtual.toISOString().split('T')[0];
+        
+        // Verificar se não há conflito com reservas existentes no mesmo horário
+        const conflito = reservas.some(r => 
+          r.data === dataFormatada && 
+          r.quadraId === dadosReserva.quadraId &&
+          ((r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio))
+        );
+        
+        if (!conflito) {
+          primeiraDataDisponivel = dataAtual;
+          break; // Encontrou a primeira data disponível, parar busca
+        }
+      }
+    }
+    
+    // Se não encontrou nenhuma data disponível no mês selecionado
+    if (!primeiraDataDisponivel) {
+      throw new Error(`Não foi encontrada nenhuma data disponível no mês selecionado (${new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}) para os dias da semana escolhidos: ${dadosReserva.diasSemana.join(', ')}.`);
+    }
+    
+    // PASSO 2: Calcular data final (30 dias corridos a partir da primeira data)
+    const dataFinal = new Date(primeiraDataDisponivel);
+    dataFinal.setDate(dataFinal.getDate() + 29); // +29 para completar 30 dias total
+    
+    const periodoMensal = `${primeiraDataDisponivel.toLocaleDateString('pt-BR')} a ${dataFinal.toLocaleDateString('pt-BR')}`;
+    
+    // PASSO 3: Gerar todas as reservas no período de 30 dias corridos
+    let dataAtual = new Date(primeiraDataDisponivel);
+    const dataLimite = new Date(dataFinal);
+    
+    while (dataAtual <= dataLimite) {
       const diaSemanaAtual = dataAtual.getDay();
       
       // Verificar se este dia coincide com algum dos dias selecionados
@@ -429,11 +554,12 @@ const QuadraManagementSystem = () => {
       if (diaCoincide) {
         const dataFormatada = dataAtual.toISOString().split('T')[0];
         
-        // Verificar se não há conflito com reservas existentes
+        // Verificar novamente se não há conflito (segurança adicional)
         const conflito = reservas.some(r => 
           r.data === dataFormatada && 
           r.quadraId === dadosReserva.quadraId &&
-          ((r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio))
+          ((r.horaInicio < dadosReserva.horaFim && r.horaFim > dadosReserva.horaInicio)) &&
+          (!editingItem || r.id !== editingItem.id) // Excluir reserva sendo editada
         );
         
         if (!conflito) {
@@ -445,18 +571,24 @@ const QuadraManagementSystem = () => {
             horaInicio: dadosReserva.horaInicio,
             horaFim: dadosReserva.horaFim,
             valor: dadosReserva.valorPorSessao,
-            status: dadosReserva.status,
+            status: dadosReserva.status || 'Confirmada',
             statusPagamento: 'Pendente',
             valorPago: 0,
             tipoReserva: 'mensal',
             mesReferencia: dadosReserva.mesReferencia,
+            periodoReal: periodoMensal,
+            primeiraData: primeiraDataDisponivel.toISOString().split('T')[0],
+            ultimaData: dataFinal.toISOString().split('T')[0],
             reservaMensalId: dadosReserva.reservaMensalId,
-            observacoes: `Reserva mensal - ${dadosReserva.mesReferencia}. ${dadosReserva.observacoes || ''}`,
+            observacoes: `Reserva mensal (${periodoMensal}) - Dias: ${dadosReserva.diasSemana.join(', ')} - ${dadosReserva.observacoes || ''}`,
             usuarioResponsavel: usuarioLogado?.nome || 'Sistema',
             dataLancamento: new Date().toISOString()
           });
         }
       }
+      
+      // Avançar para o próximo dia
+      dataAtual.setDate(dataAtual.getDate() + 1);
     }
     
     return reservasGeradas;
@@ -537,12 +669,20 @@ const QuadraManagementSystem = () => {
       return;
     }
     
-    // Calcular valor baseado na duração da reserva
+    // Calcular valor baseado na duração da reserva e tabela de preços
     const horaInicio = new Date(`${formReserva.data}T${formReserva.horaInicio}`);
     const horaFim = new Date(`${formReserva.data}T${formReserva.horaFim}`);
     const minutos = (horaFim - horaInicio) / (1000 * 60);
     const horas = minutos / 60;
-    const valorCalculado = horas * quadra.valorHora;
+    
+    // Calcular valor considerando tabela diferenciada (SEM DESCONTO)
+    let valorCalculado;
+    if (quadra.usarTabelaDiferenciada) {
+      const valorPorHora = calcularValorPorHorario(quadra, formReserva.horaInicio);
+      valorCalculado = horas * valorPorHora;
+    } else {
+      valorCalculado = horas * (parseFloat(quadra.valorHora) || 0);
+    }
 
     if (editingItem) {
       // Edição de reserva existente
@@ -565,7 +705,29 @@ const QuadraManagementSystem = () => {
         // Processar reserva mensal
         const valorMensal = calcularValorMensal();
         const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
-        const valorPorSessao = valorMensal / (formReserva.diasSemana.length * 4.33);
+        
+        // Calcular valor correto por sessão individual
+        const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+        const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
+        const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
+        const minutos = (horaFim - horaInicio) / (1000 * 60);
+        const horas = minutos / 60;
+        
+        let valorPorHora;
+        if (quadra.usarTabelaDiferenciada) {
+          const hora = parseInt(formReserva.horaInicio.split(':')[0]);
+          if (hora >= 6 && hora < 18) {
+            valorPorHora = parseFloat(quadra.valorManha) || 0;
+          } else if (hora >= 18 && hora < 23) {
+            valorPorHora = parseFloat(quadra.valorNoite) || 0;
+          } else {
+            valorPorHora = parseFloat(quadra.valorHora) || 0;
+          }
+        } else {
+          valorPorHora = parseFloat(quadra.valorHora) || 0;
+        }
+        
+        const valorPorSessao = horas * valorPorHora;
         
         const reservaMensalId = `mensal_${Date.now()}`;
         
@@ -604,24 +766,65 @@ const QuadraManagementSystem = () => {
           reservaMensalId: reservaMensalId
         });
         
+        if (reservasIndividuais.length === 0) {
+          alert('❌ Erro: Não foi possível gerar reservas!\n\nVerifique se há disponibilidade nos dias selecionados no período escolhido.');
+          return;
+        }
+        
+        // Obter período real das reservas geradas
+        const primeiraReserva = reservasIndividuais[0];
+        const periodoReal = primeiraReserva.periodoReal;
+        
+        // Atualizar faturamento com período real
+        const faturamentoAtualizado = {
+          ...faturamentoMensal,
+          mesLocacao: periodoReal,
+          dataLocacao: primeiraReserva.primeiraData,
+          observacoes: `Reserva mensal (${periodoReal}) - ${formReserva.diasSemana.join(', ')}. Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}. ${formReserva.observacoesMensal || ''}`
+        };
+        
         // Adicionar faturamento e reservas
-        setFaturamentos([...faturamentos, faturamentoMensal]);
+        setFaturamentos([...faturamentos, faturamentoAtualizado]);
         setReservas([...reservas, ...reservasIndividuais]);
         
         registrarAtividade('RESERVA_MENSAL_CRIADA', 
-          `Nova reserva mensal - ${quadra.nome} - ${formReserva.mesReferencia} - ${reservasIndividuais.length} sessões geradas`
+          `Nova reserva mensal - ${quadra.nome} - Período: ${periodoReal} - ${reservasIndividuais.length} sessões geradas`
         );
         
-        alert(`✅ Reserva mensal criada com sucesso!\n\n` +
-              `📊 Resumo:\n` +
+        // Calcular estatísticas detalhadas para o feedback
+        const primeiraReservaData = new Date(primeiraReserva.primeiraData);
+        const ultimaReservaData = new Date(primeiraReserva.ultimaData);
+        const diasCorridos = Math.ceil((ultimaReservaData - primeiraReservaData) / (1000 * 60 * 60 * 24)) + 1;
+        const mesReferenciaOriginal = new Date(parseInt(formReserva.mesReferencia.split('-')[0]), parseInt(formReserva.mesReferencia.split('-')[1]) - 1, 1)
+          .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        
+        alert(`✅ RESERVA MENSAL CRIADA COM SUCESSO!\n\n` +
+              `🎯 CÁLCULO APLICADO:\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📋 DADOS DA LOCAÇÃO:\n` +
               `• Quadra: ${quadra.nome}\n` +
-              `• Mês: ${formReserva.mesReferencia}\n` +
-              `• Dias: ${formReserva.diasSemana.join(', ')}\n` +
-              `• Horário: ${formReserva.horaInicio} - ${formReserva.horaFim}\n` +
-              `• Valor total: R$ ${valorMensal.toFixed(2)}\n` +
-              `• Parcelas: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}\n` +
-              `• Sessões geradas: ${reservasIndividuais.length}\n` +
-              `• Desconto aplicado: 10%`
+              `• Cliente: ${clientes.find(c => c.id === parseInt(formReserva.clienteId))?.nome}\n` +
+              `• Dias da semana: ${formReserva.diasSemana.join(', ')}\n` +
+              `• Horário: ${formReserva.horaInicio} - ${formReserva.horaFim}\n\n` +
+              `📅 PERÍODO CALCULADO:\n` +
+              `• Mês de referência: ${mesReferenciaOriginal}\n` +
+              `• Período real: ${periodoReal}\n` +
+              `• Total de dias corridos: ${diasCorridos} dias\n` +
+              `• Sessões geradas: ${reservasIndividuais.length} sessões\n\n` +
+              `💰 FINANCEIRO (SEM DESCONTO):\n` +
+              `• Valor total mensal: R$ ${valorMensal.toFixed(2)}\n` +
+              `• Forma de pagamento: ${formReserva.numeroParcelas}x R$ ${valorParcela.toFixed(2)}\n` +
+              `• Valor pago na reserva: R$ ${(parseFloat(formReserva.valorPago) || 0).toFixed(2)}\n` +
+              `• Valor por hora: R$ ${quadra.usarTabelaDiferenciada ? 
+                (parseInt(formReserva.horaInicio.split(':')[0]) >= 18 ? quadra.valorNoite : quadra.valorManha) : 
+                quadra.valorHora}\n\n` +
+              `🔄 SISTEMA INTELIGENTE:\n` +
+              `• ✓ Primeira data disponível localizada automaticamente\n` +
+              `• ✓ Período de 30 dias corridos garantido\n` +
+              `• ✓ Conflitos de horário verificados\n` +
+              `• ✓ Todas as reservas validadas\n` +
+              `• ✓ Valores aplicados conforme tabela de preços\n\n` +
+              `📝 Todas as informações foram registradas no sistema!`
         );
         
       } else {
@@ -761,6 +964,7 @@ const QuadraManagementSystem = () => {
     setShowModal(false);
     setModalType('');
     setEditingItem(null);
+    setShowAdminPassword(false);
     setFormQuadra({ nome: '', modalidade: '', valorHora: '', ativa: true });
     setFormCliente({ nome: '', telefone: '', email: '' });
     setFormReserva({
@@ -1029,7 +1233,925 @@ const QuadraManagementSystem = () => {
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
-  // Atualizar cálculos automaticamente para reserva mensal
+  // Função para expandir/colapsar cliente
+  const toggleClienteExpandido = (clienteId) => {
+    setClientesExpandidos(prev => ({
+      ...prev,
+      [clienteId]: !prev[clienteId]
+    }));
+  };
+
+  // Função para limpar todos os dados financeiros
+  const limparDadosFinanceiros = () => {
+    const confirmacao = confirm(
+      '⚠️ ATENÇÃO: LIMPEZA TOTAL DOS DADOS FINANCEIROS\n\n' +
+      'Esta operação irá remover PERMANENTEMENTE:\n\n' +
+      '• Todas as reservas cadastradas\n' +
+      '• Todos os faturamentos administrativos\n' +
+      '• Todos os recebimentos registrados\n' +
+      '• Histórico completo de receitas\n\n' +
+      '❌ ESTA AÇÃO NÃO PODE SER DESFEITA!\n\n' +
+      'Deseja prosseguir com a limpeza total?'
+    );
+    
+    if (confirmacao) {
+      const segundaConfirmacao = confirm(
+        '🔴 CONFIRMAÇÃO FINAL\n\n' +
+        'Você tem certeza ABSOLUTA que deseja apagar todos os dados financeiros?\n\n' +
+        'Digite "CONFIRMAR" mentalmente e clique em OK para prosseguir.\n\n' +
+        'Esta é sua última chance de cancelar!'
+      );
+      
+      if (segundaConfirmacao) {
+        // Limpar todos os dados financeiros
+        setReservas([]);
+        setFaturamentos([]);
+        setRecebimentos([]);
+        
+        // Registrar a limpeza nos logs
+        registrarAtividade('LIMPEZA_DADOS_FINANCEIROS', 'Todos os dados financeiros foram removidos pelo usuário');
+        
+        alert(
+          '✅ LIMPEZA CONCLUÍDA COM SUCESSO!\n\n' +
+          '🗑️ Dados removidos:\n' +
+          '• Reservas: ZERADAS\n' +
+          '• Faturamentos: ZERADOS\n' +
+          '• Recebimentos: ZERADOS\n' +
+          '• Receita Total: R$ 0,00\n' +
+          '• Valores Recebidos: R$ 0,00\n\n' +
+          '📝 A operação foi registrada nos logs do sistema.\n' +
+          '💾 Recomenda-se fazer um backup antes de inserir novos dados.'
+        );
+      }
+    }
+  };
+
+  // Função para gerar dados mensais do painel
+  const gerarDadosMensaisPainel = () => {
+    const dataBase = new Date(dataRelatorio);
+    const ano = dataBase.getFullYear();
+    const mes = dataBase.getMonth();
+    
+    // Primeiro e último dia do mês
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+    
+    // Gerar todos os dias do mês
+    const diasDoMes = [];
+    for (let d = new Date(primeiroDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
+      diasDoMes.push(new Date(d));
+    }
+    
+    const quadrasParaExportar = quadraImpressao ? 
+      quadras.filter(q => q.id == quadraImpressao) : 
+      quadras.filter(q => q.ativa);
+    
+    const dadosExportacao = {
+      periodo: `${primeiroDia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}`,
+      dataGeracao: new Date().toLocaleDateString('pt-BR'),
+      quadras: quadrasParaExportar.map(quadra => {
+        const reservasMes = reservas.filter(r => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && 
+                 dataReserva >= primeiroDia && 
+                 dataReserva <= ultimoDia;
+        });
+        
+        // Estatísticas da quadra
+        const totalReservas = reservasMes.length;
+        const reservasConfirmadas = reservasMes.filter(r => r.status === 'Confirmada').length;
+        const receitaTotal = reservasMes.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const receitaPaga = reservasMes.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+        
+        // Dias com ocupação
+        const diasComReservas = diasDoMes.map(dia => {
+          const dataStr = dia.toISOString().split('T')[0];
+          const reservasDoDia = reservasMes.filter(r => r.data === dataStr);
+          
+          return {
+            data: dia.toLocaleDateString('pt-BR'),
+            diaSemana: dia.toLocaleDateString('pt-BR', { weekday: 'long' }),
+            totalReservas: reservasDoDia.length,
+            reservas: reservasDoDia.map(reserva => {
+              const cliente = clientes.find(c => c.id === reserva.clienteId);
+              return {
+                horario: `${reserva.horaInicio} - ${reserva.horaFim}`,
+                cliente: cliente?.nome || 'N/A',
+                valor: reserva.valor || 0,
+                status: reserva.status,
+                statusPagamento: reserva.statusPagamento || 'Pendente',
+                valorPago: reserva.valorPago || 0
+              };
+            })
+          };
+        });
+        
+        return {
+          id: quadra.id,
+          nome: quadra.nome,
+          modalidade: quadra.modalidade,
+          valorHora: quadra.valorHora,
+          usarTabelaDiferenciada: quadra.usarTabelaDiferenciada,
+          valorManha: quadra.valorManha,
+          valorNoite: quadra.valorNoite,
+          estatisticas: {
+            totalReservas,
+            reservasConfirmadas,
+            receitaTotal,
+            receitaPaga,
+            taxaOcupacao: ((totalReservas / (diasDoMes.length * 17)) * 100).toFixed(1) // 17 horários possíveis por dia
+          },
+          dias: diasComReservas
+        };
+      })
+    };
+    
+    return dadosExportacao;
+  };
+
+  // Função para exportar PDF do painel
+  const gerarExportacaoPainelPDF = () => {
+    try {
+      const dados = gerarDadosMensaisPainel();
+      
+      // Criar conteúdo HTML para o PDF
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Painel Visual - ${dados.periodo}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 10px; margin: 20px; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+            .logo { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 10px; }
+            .title { font-size: 18px; font-weight: bold; color: #2563eb; margin: 5px 0; }
+            .subtitle { font-size: 12px; color: #666; margin: 3px 0; }
+            .quadra-section { margin-bottom: 25px; page-break-inside: avoid; }
+            .quadra-header { background: #f3f4f6; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+            .quadra-name { font-size: 14px; font-weight: bold; color: #1f2937; }
+            .quadra-info { font-size: 10px; color: #6b7280; margin-top: 5px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
+            .stat-box { background: #f8fafc; padding: 8px; border-radius: 4px; text-align: center; border-left: 3px solid #2563eb; }
+            .stat-value { font-size: 16px; font-weight: bold; color: #2563eb; }
+            .stat-label { font-size: 9px; color: #6b7280; margin-top: 2px; }
+            .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin: 10px 0; }
+            .day-header { background: #2563eb; color: white; padding: 5px; text-align: center; font-weight: bold; font-size: 8px; }
+            .day-cell { border: 1px solid #e5e7eb; min-height: 60px; padding: 3px; position: relative; font-size: 8px; }
+            .day-number { font-weight: bold; color: #1f2937; }
+            .day-name { color: #6b7280; font-size: 7px; }
+            .reserva-item { background: #dbeafe; margin: 1px 0; padding: 1px 2px; border-radius: 2px; font-size: 7px; }
+            .reserva-confirmada { background: #dcfce7; }
+            .reserva-pendente { background: #fef3c7; }
+            .reserva-cancelada { background: #fee2e2; }
+            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 8px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">ESPORTE CLUBE JUREMA</div>
+            <div class="subtitle">Painel Visual Mensal - ${dados.periodo}</div>
+            <div class="subtitle">Gerado em: ${dados.dataGeracao} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      
+      dados.quadras.forEach(quadra => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="quadra-info">
+                Valores: ${quadra.usarTabelaDiferenciada ? 
+                  `🌅 R$ ${quadra.valorManha}/h • 🌙 R$ ${quadra.valorNoite}/h` : 
+                  `R$ ${quadra.valorHora}/h`
+                }
+              </div>
+            </div>
+            
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.totalReservas}</div>
+                <div class="stat-label">Total Reservas</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.reservasConfirmadas}</div>
+                <div class="stat-label">Confirmadas</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">R$ ${quadra.estatisticas.receitaTotal.toFixed(0)}</div>
+                <div class="stat-label">Receita Total</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-value">${quadra.estatisticas.taxaOcupacao}%</div>
+                <div class="stat-label">Taxa Ocupação</div>
+              </div>
+            </div>
+            
+            <div class="calendar-grid">
+              <div class="day-header">DOM</div>
+              <div class="day-header">SEG</div>
+              <div class="day-header">TER</div>
+              <div class="day-header">QUA</div>
+              <div class="day-header">QUI</div>
+              <div class="day-header">SEX</div>
+              <div class="day-header">SÁB</div>
+        `;
+        
+        // Preencher células do calendário
+        const primeiroDia = new Date(quadra.dias[0].data.split('/').reverse().join('-'));
+        const primeiroDiaSemana = primeiroDia.getDay();
+        
+        // Células vazias no início
+        for (let i = 0; i < primeiroDiaSemana; i++) {
+          htmlContent += '<div class="day-cell"></div>';
+        }
+        
+        // Dias do mês
+        quadra.dias.forEach(dia => {
+          const numeroDia = dia.data.split('/')[0];
+          htmlContent += `
+            <div class="day-cell">
+              <div class="day-number">${numeroDia}</div>
+              <div class="day-name">${dia.diaSemana.substring(0, 3).toUpperCase()}</div>
+          `;
+          
+          dia.reservas.slice(0, 3).forEach(reserva => {
+            const statusClass = reserva.status === 'Confirmada' ? 'reserva-confirmada' :
+                               reserva.status === 'Pendente' ? 'reserva-pendente' : 'reserva-cancelada';
+            htmlContent += `
+              <div class="reserva-item ${statusClass}">
+                ${reserva.horario.split(' - ')[0]} ${reserva.cliente.split(' ')[0]}
+              </div>
+            `;
+          });
+          
+          if (dia.reservas.length > 3) {
+            htmlContent += `<div class="reserva-item">+${dia.reservas.length - 3} mais</div>`;
+          }
+          
+          htmlContent += '</div>';
+        });
+        
+        htmlContent += '</div></div>';
+      });
+      
+      htmlContent += `
+          <div class="footer">
+            © 2025 PauloCunhaMKT Soluções TI • Sistema de Gestão Esportiva v2.1.0<br>
+            Relatório gerado automaticamente pelo sistema • Dados atualizados em tempo real
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Criar blob e download
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Painel_Visual_${dados.periodo.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      registrarAtividade('EXPORT_PDF_PAINEL', `PDF do painel visual exportado - ${dados.periodo}`);
+      alert(`✅ PDF do Painel Visual exportado!\nPeríodo: ${dados.periodo}\nArquivo HTML gerado para conversão em PDF.`);
+      
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('❌ Erro ao gerar PDF. Tente novamente.');
+    }
+  };
+
+  // Função para exportar PDF da semana (formato visual limpo)
+  const gerarPDFSemanalVisual = () => {
+    try {
+      const dataInicio = new Date(dataRelatorio);
+      const quadrasParaExibir = quadraImpressao ? 
+        quadras.filter(q => q.id == quadraImpressao) : 
+        quadras.filter(q => q.ativa);
+      
+      // Gerar os 7 dias da semana
+      const diasSemana = [];
+      for (let i = 0; i < 7; i++) {
+        const data = new Date(dataInicio);
+        data.setDate(dataInicio.getDate() + i);
+        diasSemana.push(data);
+      }
+      
+      // Gerar horários de 6h às 22h
+      const horarios = [];
+      for (let h = 6; h <= 22; h++) {
+        horarios.push(`${h.toString().padStart(2, '0')}:00`);
+      }
+      
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Programação Semanal - ${dataInicio.toLocaleDateString('pt-BR')}</title>
+          <style>
+            @page { size: A4 landscape; margin: 0.5cm; }
+            body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; }
+            .header { text-align: center; margin-bottom: 15px; background: #2563eb; color: white; padding: 10px; border-radius: 5px; }
+            .quadra-section { margin-bottom: 20px; page-break-inside: avoid; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; }
+            .quadra-header { background: #f3f4f6; padding: 8px; border-bottom: 1px solid #ddd; }
+            .quadra-name { font-size: 12px; font-weight: bold; color: #1f2937; }
+            .calendar-grid { width: 100%; border-collapse: collapse; }
+            .calendar-grid th, .calendar-grid td { border: 1px solid #ccc; padding: 4px; text-align: center; vertical-align: top; }
+            .calendar-grid th { background: #2563eb; color: white; font-weight: bold; font-size: 9px; }
+            .horario-col { background: #f8fafc; font-weight: bold; width: 60px; }
+            .day-col { width: 120px; min-height: 25px; position: relative; }
+            .reserva-item { background: #dcfce7; margin: 1px; padding: 2px; border-radius: 2px; font-size: 8px; border-left: 2px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo { background: #f0f9ff; padding: 8px; text-align: center; font-size: 9px; }
+            .valores-quadra { font-size: 9px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div style="font-size: 14px; font-weight: bold;">ESPORTE CLUBE JUREMA - PROGRAMAÇÃO SEMANAL</div>
+            <div style="font-size: 11px;">Semana de ${diasSemana[0].toLocaleDateString('pt-BR')} a ${diasSemana[6].toLocaleDateString('pt-BR')}</div>
+            <div style="font-size: 10px;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      
+      quadrasParaExibir.forEach(quadra => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="valores-quadra">
+                Valores: ${quadra.usarTabelaDiferenciada ? 
+                  `🌅 Manhã/Tarde: R$ ${quadra.valorManha}/h • 🌙 Noite: R$ ${quadra.valorNoite}/h` : 
+                  `R$ ${quadra.valorHora}/h`
+                }
+              </div>
+            </div>
+            
+            <table class="calendar-grid">
+              <thead>
+                <tr>
+                  <th class="horario-col">Horário</th>
+        `;
+        
+        // Cabeçalho dos dias
+        diasSemana.forEach(data => {
+          const diaSemana = data.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase();
+          const dataFormatada = `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+          htmlContent += `<th class="day-col">${diaSemana}<br>${dataFormatada}</th>`;
+        });
+        
+        htmlContent += `
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Linhas de horários
+        horarios.forEach(horario => {
+          htmlContent += `<tr><td class="horario-col">${horario}</td>`;
+          
+          diasSemana.forEach(data => {
+            const dataStr = data.toISOString().split('T')[0];
+            const horaInicio = horario;
+            const horaFim = `${(parseInt(horario.split(':')[0]) + 1).toString().padStart(2, '0')}:00`;
+            
+            // Buscar reservas que se sobrepõem com este slot
+            const reservasNoSlot = reservas.filter(r => {
+              if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+              return (r.horaInicio < horaFim && r.horaFim > horaInicio);
+            });
+            
+            htmlContent += `<td class="day-col">`;
+            
+            if (reservasNoSlot.length > 0) {
+              const reserva = reservasNoSlot[0];
+              const cliente = clientes.find(c => c.id === reserva.clienteId);
+              const statusClass = reserva.status === 'Confirmada' ? 'reserva-item' :
+                                 reserva.status === 'Pendente' ? 'reserva-item reserva-pendente' : 
+                                 'reserva-item reserva-cancelada';
+              
+              htmlContent += `
+                <div class="${statusClass}">
+                  <div style="font-weight: bold;">${reserva.horaInicio}-${reserva.horaFim}</div>
+                  <div>${cliente?.nome || 'N/A'}</div>
+                  <div>R$ ${(reserva.valor || 0).toFixed(0)}</div>
+                </div>
+              `;
+            }
+            
+            htmlContent += `</td>`;
+          });
+          
+          htmlContent += `</tr>`;
+        });
+        
+        htmlContent += `
+              </tbody>
+            </table>
+            
+            <div class="resumo">
+        `;
+        
+        // Calcular estatísticas da semana
+        const reservasSemana = reservas.filter(r => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && 
+                 dataReserva >= diasSemana[0] && 
+                 dataReserva <= diasSemana[6];
+        });
+        
+        const totalReservas = reservasSemana.length;
+        const receitaSemana = reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const totalSlots = 7 * 17; // 7 dias × 17 horários
+        const ocupacao = ((totalReservas / totalSlots) * 100).toFixed(1);
+        
+        htmlContent += `
+          Reservas na Semana: <strong>${totalReservas}</strong> • 
+          Taxa de Ocupação: <strong>${ocupacao}%</strong> • 
+          Receita Semana: <strong>R$ ${receitaSemana.toFixed(2)}</strong> • 
+          Slots Disponíveis: <strong>${totalSlots - totalReservas}</strong>
+            </div>
+          </div>
+        `;
+      });
+      
+      htmlContent += `
+          <div style="margin-top: 15px; text-align: center; font-size: 8px; color: #666;">
+            © 2025 PauloCunhaMKT Soluções TI • Sistema de Gestão Esportiva v2.1.0<br>
+            Relatório gerado automaticamente • Layout otimizado para impressão
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Criar blob e download
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Programacao_Semanal_${diasSemana[0].toLocaleDateString('pt-BR').replace(/\//g, '_')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      registrarAtividade('EXPORT_PDF_SEMANAL', `PDF semanal visual exportado - ${diasSemana[0].toLocaleDateString('pt-BR')}`);
+      alert(`✅ PDF da Programação Semanal exportado!\n\n📅 Período: ${diasSemana[0].toLocaleDateString('pt-BR')} a ${diasSemana[6].toLocaleDateString('pt-BR')}\n📊 Formato: Calendário visual limpo\n📁 Arquivo HTML gerado para conversão em PDF\n\n💡 Abra o arquivo e use Ctrl+P para imprimir em PDF`);
+      
+    } catch (error) {
+      console.error('Erro ao gerar PDF semanal:', error);
+      alert('❌ Erro ao gerar PDF semanal. Tente novamente.');
+    }
+  };
+
+  // Função para exportar XLS da semana (formato planilha)
+  const gerarXLSSemanalVisual = () => {
+    try {
+      const dataInicio = new Date(dataRelatorio);
+      const quadrasParaExibir = quadraImpressao ? 
+        quadras.filter(q => q.id == quadraImpressao) : 
+        quadras.filter(q => q.ativa);
+      
+      // Gerar os 7 dias da semana
+      const diasSemana = [];
+      for (let i = 0; i < 7; i++) {
+        const data = new Date(dataInicio);
+        data.setDate(dataInicio.getDate() + i);
+        diasSemana.push(data);
+      }
+      
+      // Gerar horários de 6h às 22h
+      const horarios = [];
+      for (let h = 6; h <= 22; h++) {
+        horarios.push(`${h.toString().padStart(2, '0')}:00`);
+      }
+      
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Programação Semanal - ${dataInicio.toLocaleDateString('pt-BR')}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .header { text-align: center; margin-bottom: 20px; background: #2563eb; color: white; padding: 12px; }
+            .quadra-section { margin-bottom: 25px; page-break-inside: avoid; border: 1px solid #ddd; }
+            .quadra-header { background: #f3f4f6; padding: 10px; border-bottom: 1px solid #ddd; }
+            .calendar-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+            .calendar-table th, .calendar-table td { border: 1px solid #000; padding: 6px; text-align: center; vertical-align: top; }
+            .calendar-table th { background: #2563eb; color: white; font-weight: bold; font-size: 10px; }
+            .horario-cell { background: #f8fafc; font-weight: bold; width: 80px; }
+            .day-cell { width: 140px; min-height: 30px; }
+            .reserva-info { background: #dcfce7; margin: 2px; padding: 3px; border-radius: 3px; font-size: 9px; border-left: 3px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo-quadra { background: #f0f9ff; padding: 10px; text-align: center; font-size: 10px; border-top: 1px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div style="font-size: 16px; font-weight: bold;">ESPORTE CLUBE JUREMA</div>
+            <div style="font-size: 14px;">PROGRAMAÇÃO SEMANAL DE QUADRAS</div>
+            <div style="font-size: 12px;">Semana de ${diasSemana[0].toLocaleDateString('pt-BR')} a ${diasSemana[6].toLocaleDateString('pt-BR')}</div>
+            <div style="font-size: 10px;">Gerado em: ${new Date().toLocaleDateString('pt-BR')} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      
+      quadrasParaExibir.forEach(quadra => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div style="font-size: 14px; font-weight: bold; color: #1f2937;">${quadra.nome} - ${quadra.modalidade}</div>
+              <div style="font-size: 10px; color: #6b7280; margin-top: 5px;">
+                Valores: ${quadra.usarTabelaDiferenciada ? 
+                  `🌅 Manhã/Tarde (06:00-17:59): R$ ${quadra.valorManha}/h • 🌙 Noite (18:00-22:59): R$ ${quadra.valorNoite}/h` : 
+                  `R$ ${quadra.valorHora}/h (todos os horários)`
+                }
+              </div>
+            </div>
+            
+            <table class="calendar-table">
+              <thead>
+                <tr>
+                  <th class="horario-cell">HORÁRIO</th>
+        `;
+        
+        // Cabeçalho dos dias
+        diasSemana.forEach(data => {
+          const diaSemana = data.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase();
+          const dataFormatada = `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+          htmlContent += `<th class="day-cell">${diaSemana}<br>${dataFormatada}</th>`;
+        });
+        
+        htmlContent += `
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Linhas de horários
+        horarios.forEach(horario => {
+          htmlContent += `<tr><td class="horario-cell">${horario}</td>`;
+          
+          diasSemana.forEach(data => {
+            const dataStr = data.toISOString().split('T')[0];
+            const horaInicio = horario;
+            const horaFim = `${(parseInt(horario.split(':')[0]) + 1).toString().padStart(2, '0')}:00`;
+            
+            // Buscar reservas que se sobrepõem com este slot
+            const reservasNoSlot = reservas.filter(r => {
+              if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+              return (r.horaInicio < horaFim && r.horaFim > horaInicio);
+            });
+            
+            htmlContent += `<td class="day-cell">`;
+            
+            if (reservasNoSlot.length > 0) {
+              const reserva = reservasNoSlot[0];
+              const cliente = clientes.find(c => c.id === reserva.clienteId);
+              const statusClass = reserva.status === 'Confirmada' ? 'reserva-info' :
+                                 reserva.status === 'Pendente' ? 'reserva-info reserva-pendente' : 
+                                 'reserva-info reserva-cancelada';
+              
+              htmlContent += `
+                <div class="${statusClass}">
+                  <div style="font-weight: bold; margin-bottom: 2px;">${reserva.horaInicio} - ${reserva.horaFim}</div>
+                  <div style="margin-bottom: 2px;">${cliente?.nome || 'Cliente N/A'}</div>
+                  <div style="font-weight: bold; color: #059669;">R$ ${(reserva.valor || 0).toFixed(2)}</div>
+                  <div style="font-size: 8px; margin-top: 2px;">${reserva.status}</div>
+                </div>
+              `;
+            } else {
+              htmlContent += `<div style="color: #9ca3af; text-align: center; padding: 20px; font-style: italic;">Disponível</div>`;
+            }
+            
+            htmlContent += `</td>`;
+          });
+          
+          htmlContent += `</tr>`;
+        });
+        
+        htmlContent += `
+              </tbody>
+            </table>
+            
+            <div class="resumo-quadra">
+        `;
+        
+        // Calcular estatísticas da semana
+        const reservasSemana = reservas.filter(r => {
+          const dataReserva = new Date(r.data);
+          return r.quadraId === quadra.id && 
+                 dataReserva >= diasSemana[0] && 
+                 dataReserva <= diasSemana[6];
+        });
+        
+        const totalReservas = reservasSemana.length;
+        const reservasConfirmadas = reservasSemana.filter(r => r.status === 'Confirmada').length;
+        const receitaSemana = reservasSemana.reduce((acc, r) => acc + (r.valor || 0), 0);
+        const receitaPaga = reservasSemana.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+        const totalSlots = 7 * 17; // 7 dias × 17 horários
+        const ocupacao = ((totalReservas / totalSlots) * 100).toFixed(1);
+        
+        htmlContent += `
+          <strong>📊 RESUMO DA SEMANA:</strong><br>
+          Total de Reservas: <strong>${totalReservas}</strong> • 
+          Confirmadas: <strong>${reservasConfirmadas}</strong> • 
+          Taxa de Ocupação: <strong>${ocupacao}%</strong><br>
+          Receita Total: <strong>R$ ${receitaSemana.toFixed(2)}</strong> • 
+          Valor Recebido: <strong>R$ ${receitaPaga.toFixed(2)}</strong> • 
+          Slots Livres: <strong>${totalSlots - totalReservas}</strong>
+            </div>
+          </div>
+        `;
+      });
+      
+      htmlContent += `
+          <div style="margin-top: 20px; padding: 10px; background: #f3f4f6; text-align: center; font-size: 10px; color: #6b7280;">
+            <strong>LEGENDA:</strong> 
+            🟢 Verde = Confirmada • 🟡 Amarelo = Pendente • 🔴 Vermelho = Cancelada<br>
+            <strong>© 2025 PauloCunhaMKT Soluções TI</strong> • Sistema de Gestão Esportiva v2.1.0 • 
+            Relatório otimizado para impressão e planilhas
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Criar blob e download
+      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Programacao_Semanal_${diasSemana[0].toLocaleDateString('pt-BR').replace(/\//g, '_')}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      registrarAtividade('EXPORT_XLS_SEMANAL', `XLS semanal visual exportado - ${diasSemana[0].toLocaleDateString('pt-BR')}`);
+      alert(`✅ Excel da Programação Semanal exportado!\n\n📅 Período: ${diasSemana[0].toLocaleDateString('pt-BR')} a ${diasSemana[6].toLocaleDateString('pt-BR')}\n📊 Formato: Planilha com layout de calendário\n📁 Arquivo .XLS otimizado para Excel\n\n💡 Abra no Excel para melhor visualização e impressão`);
+      
+    } catch (error) {
+      console.error('Erro ao gerar XLS semanal:', error);
+      alert('❌ Erro ao gerar XLS semanal. Tente novamente.');
+    }
+  };
+
+  // Função para exportar XLS do painel
+  const gerarExportacaoPainelXLS = () => {
+    try {
+      const dados = gerarDadosMensaisPainel();
+      
+      // Criar conteúdo HTML estruturado para Excel
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Painel Visual - ${dados.periodo}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .header { text-align: center; margin-bottom: 20px; background: #2563eb; color: white; padding: 15px; }
+            .title { font-size: 16px; font-weight: bold; margin: 5px 0; }
+            .subtitle { font-size: 12px; margin: 3px 0; }
+            .quadra-section { margin-bottom: 30px; page-break-inside: avoid; border: 1px solid #ddd; }
+            .quadra-header { background: #f3f4f6; padding: 12px; border-bottom: 1px solid #ddd; }
+            .quadra-name { font-size: 14px; font-weight: bold; color: #1f2937; }
+            .quadra-info { font-size: 10px; color: #6b7280; margin-top: 5px; }
+            .stats-section { background: #f8fafc; padding: 10px; margin: 10px 0; }
+            .stats-grid { display: table; width: 100%; }
+            .stat-row { display: table-row; }
+            .stat-cell { display: table-cell; padding: 8px; border: 1px solid #e5e7eb; }
+            .stat-label { font-weight: bold; background: #e5e7eb; }
+            .calendar-section { margin: 15px 0; }
+            .calendar-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+            .calendar-table th, .calendar-table td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size: 10px; }
+            .calendar-table th { background: #2563eb; color: white; font-weight: bold; }
+            .calendar-header { background: #dbeafe; font-weight: bold; text-align: center; padding: 5px; }
+            .day-cell { min-height: 80px; vertical-align: top; position: relative; }
+            .reserva-item { background: #dcfce7; margin: 2px; padding: 3px; border-radius: 3px; font-size: 9px; border-left: 3px solid #16a34a; }
+            .reserva-pendente { background: #fef3c7; border-left-color: #d97706; }
+            .reserva-cancelada { background: #fee2e2; border-left-color: #dc2626; }
+            .resumo-section { background: #f0f9ff; padding: 10px; margin-top: 15px; border: 1px solid #0ea5e9; }
+            .resumo-grid { display: table; width: 100%; }
+            .resumo-row { display: table-row; }
+            .resumo-cell { display: table-cell; padding: 5px; border: 1px solid #0ea5e9; text-align: center; }
+            .resumo-header { background: #0ea5e9; color: white; font-weight: bold; }
+            .sem-reservas { color: #9ca3af; font-style: italic; padding: 20px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">ESPORTE CLUBE JUREMA - PAINEL VISUAL MENSAL</div>
+            <div class="subtitle">${dados.periodo}</div>
+            <div class="subtitle">Gerado em: ${dados.dataGeracao} por ${usuarioLogado?.nome}</div>
+          </div>
+      `;
+      
+      dados.quadras.forEach(quadra => {
+        htmlContent += `
+          <div class="quadra-section">
+            <div class="quadra-header">
+              <div class="quadra-name">${quadra.nome} - ${quadra.modalidade}</div>
+              <div class="quadra-info">
+                Valores: ${quadra.usarTabelaDiferenciada ? 
+                  `🌅 Manhã/Tarde: R$ ${quadra.valorManha}/h • 🌙 Noite: R$ ${quadra.valorNoite}/h` : 
+                  `R$ ${quadra.valorHora}/h`
+                }
+              </div>
+            </div>
+            
+            <div class="stats-section">
+              <h4 style="margin: 0 0 10px 0; color: #1f2937;">📊 Estatísticas da Quadra</h4>
+              <div class="stats-grid">
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Total de Reservas</div>
+                  <div class="stat-cell">${quadra.estatisticas.totalReservas}</div>
+                  <div class="stat-cell stat-label">Confirmadas</div>
+                  <div class="stat-cell">${quadra.estatisticas.reservasConfirmadas}</div>
+                </div>
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Receita Total</div>
+                  <div class="stat-cell">R$ ${quadra.estatisticas.receitaTotal.toFixed(2)}</div>
+                  <div class="stat-cell stat-label">Taxa de Ocupação</div>
+                  <div class="stat-cell">${quadra.estatisticas.taxaOcupacao}%</div>
+                </div>
+                <div class="stat-row">
+                  <div class="stat-cell stat-label">Receita Recebida</div>
+                  <div class="stat-cell">R$ ${quadra.estatisticas.receitaPaga.toFixed(2)}</div>
+                  <div class="stat-cell stat-label">Valor Pendente</div>
+                  <div class="stat-cell">R$ ${(quadra.estatisticas.receitaTotal - quadra.estatisticas.receitaPaga).toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="calendar-section">
+              <h4 style="margin: 10px 0; color: #1f2937;">📅 Calendário Mensal - Visualização por Dia</h4>
+              <table class="calendar-table">
+                <thead>
+                  <tr>
+                    <th>DOM</th><th>SEG</th><th>TER</th><th>QUA</th><th>QUI</th><th>SEX</th><th>SAB</th>
+                  </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        // Organizar dias em semanas para o calendário
+        const primeiroDia = new Date(quadra.dias[0].data.split('/').reverse().join('-'));
+        const primeiroDiaSemana = primeiroDia.getDay();
+        let diaAtual = 0;
+        
+        // Calcular quantas semanas precisamos
+        const totalDias = quadra.dias.length;
+        const semanas = Math.ceil((totalDias + primeiroDiaSemana) / 7);
+        
+        for (let semana = 0; semana < semanas; semana++) {
+          htmlContent += '<tr>';
+          
+          for (let diaSemana = 0; diaSemana < 7; diaSemana++) {
+            if ((semana === 0 && diaSemana < primeiroDiaSemana) || diaAtual >= totalDias) {
+              htmlContent += '<td class="day-cell"></td>';
+            } else {
+              const dia = quadra.dias[diaAtual];
+              const numeroDia = dia.data.split('/')[0];
+              
+              htmlContent += `<td class="day-cell">`;
+              htmlContent += `<div style="font-weight: bold; margin-bottom: 5px;">${numeroDia}</div>`;
+              htmlContent += `<div style="font-size: 8px; color: #666; margin-bottom: 5px;">${dia.diaSemana.substring(0, 3).toUpperCase()}</div>`;
+              
+              if (dia.reservas.length > 0) {
+                dia.reservas.slice(0, 4).forEach(reserva => {
+                  const statusClass = reserva.status === 'Confirmada' ? 'reserva-item' :
+                                     reserva.status === 'Pendente' ? 'reserva-item reserva-pendente' : 
+                                     'reserva-item reserva-cancelada';
+                  htmlContent += `
+                    <div class="${statusClass}">
+                      <div style="font-weight: bold;">${reserva.horario.split(' - ')[0]}</div>
+                      <div>${reserva.cliente.split(' ')[0]}</div>
+                      <div>R$ ${reserva.valor.toFixed(0)}</div>
+                    </div>
+                  `;
+                });
+                if (dia.reservas.length > 4) {
+                  htmlContent += `<div style="font-size: 8px; color: #666; margin-top: 2px;">+${dia.reservas.length - 4} mais</div>`;
+                }
+              } else {
+                htmlContent += '<div class="sem-reservas">Livre</div>';
+              }
+              
+              htmlContent += '</td>';
+              diaAtual++;
+            }
+          }
+          htmlContent += '</tr>';
+        }
+        
+        htmlContent += `
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="resumo-section">
+              <h4 style="margin: 0 0 10px 0; color: #0f172a;">📈 Resumo de Performance</h4>
+              <div class="resumo-grid">
+                <div class="resumo-row">
+                  <div class="resumo-cell resumo-header">Reservas na Semana</div>
+                  <div class="resumo-cell resumo-header">Ocupação</div>
+                  <div class="resumo-cell resumo-header">Receita</div>
+                  <div class="resumo-cell resumo-header">Slots Livres</div>
+                </div>
+                <div class="resumo-row">
+                  <div class="resumo-cell">${quadra.estatisticas.totalReservas}</div>
+                  <div class="resumo-cell">${quadra.estatisticas.taxaOcupacao}%</div>
+                  <div class="resumo-cell">R$ ${quadra.estatisticas.receitaTotal.toFixed(2)}</div>
+                  <div class="resumo-cell">${(31 * 17) - quadra.estatisticas.totalReservas}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      // Resumo geral consolidado
+      const totalReservas = dados.quadras.reduce((acc, q) => acc + q.estatisticas.totalReservas, 0);
+      const totalReceita = dados.quadras.reduce((acc, q) => acc + q.estatisticas.receitaTotal, 0);
+      const totalRecebido = dados.quadras.reduce((acc, q) => acc + q.estatisticas.receitaPaga, 0);
+      
+      htmlContent += `
+          <div style="background: #065f46; color: white; padding: 15px; margin-top: 20px; border-radius: 8px;">
+            <h3 style="margin: 0 0 15px 0; text-align: center;">🏆 RESUMO GERAL DO PERÍODO</h3>
+            <div class="resumo-grid">
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Total de Quadras</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Total de Reservas</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Receita Total</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Valor Recebido</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">${dados.quadras.length}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">${totalReservas}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">R$ ${totalReceita.toFixed(2)}</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">R$ ${totalRecebido.toFixed(2)}</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Taxa Geral</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Valor Pendente</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">% Recebimento</div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.1); font-weight: bold;">Performance</div>
+              </div>
+              <div class="resumo-row">
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 0 ? ((totalReservas / (dados.quadras.length * 31 * 17)) * 100).toFixed(1) : 0}%
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  R$ ${(totalReceita - totalRecebido).toFixed(2)}
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 0 ? Math.round((totalRecebido / totalReceita) * 100) : 0}%
+                </div>
+                <div class="resumo-cell" style="background: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;">
+                  ${totalReceita > 15000 ? '🟢 Excelente' : totalReceita > 10000 ? '🟡 Bom' : '🔴 Baixo'}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 10px; background: #f3f4f6; border-radius: 5px; text-align: center;">
+            <p style="margin: 0; font-size: 10px; color: #6b7280;">
+              <strong>© 2025 PauloCunhaMKT Soluções TI</strong> • Sistema de Gestão Esportiva v2.1.0<br>
+              Relatório gerado automaticamente • Dados atualizados em tempo real • Esporte Clube Jurema
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      // Criar blob e download
+      const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Painel_Visual_${dados.periodo.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      registrarAtividade('EXPORT_XLS_PAINEL', `Excel do painel visual exportado - ${dados.periodo}`);
+      alert(`✅ Excel do Painel Visual exportado com formatação!\n\n📊 Conteúdo incluído:\n• Calendário visual mensal por quadra\n• Estatísticas detalhadas de ocupação\n• Resumo financeiro completo\n• Layout similar ao painel do sistema\n\nPeríodo: ${dados.periodo}\n📁 Arquivo: .XLS otimizado para Excel`);
+      
+    } catch (error) {
+      console.error('Erro ao gerar Excel:', error);
+      alert('❌ Erro ao gerar Excel. Tente novamente.');
+    }
+  };
+
+  // Atualizar cálculos automaticamente para reserva mensal e avulsa
   useEffect(() => {
     if (formReserva.tipoReserva === 'mensal' && 
         formReserva.quadraId && 
@@ -1045,8 +2167,37 @@ const QuadraManagementSystem = () => {
         valorMensal: valorMensal,
         valorParcela: valorParcela
       }));
+    } else if (formReserva.tipoReserva === 'avulsa' && 
+               formReserva.quadraId && 
+               formReserva.horaInicio && 
+               formReserva.horaFim) {
+      
+      const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+      if (quadra && formReserva.horaInicio < formReserva.horaFim) {
+        // Calcular duração em horas
+        const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
+        const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
+        const minutos = (horaFim - horaInicio) / (1000 * 60);
+        const horas = minutos / 60;
+        
+        // Calcular valor por hora baseado no período
+        let valorPorHora;
+        if (quadra.usarTabelaDiferenciada) {
+          valorPorHora = calcularValorPorHorario(quadra, formReserva.horaInicio);
+        } else {
+          valorPorHora = parseFloat(quadra.valorHora) || 0;
+        }
+        
+        const valorCalculado = horas * valorPorHora;
+        
+        // Atualizar o valor automaticamente apenas se não foi editado manualmente
+        setFormReserva(prev => ({
+          ...prev,
+          valor: valorCalculado.toFixed(2)
+        }));
+      }
     }
-  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva]);
+  }, [formReserva.quadraId, formReserva.horaInicio, formReserva.horaFim, formReserva.diasSemana, formReserva.numeroParcelas, formReserva.tipoReserva, quadras]);
 
   // Backup automático diário
   useEffect(() => {
@@ -1155,6 +2306,7 @@ const QuadraManagementSystem = () => {
   // Configuração dos ícones para cada aba
   const tabIcons = {
     dashboard: Home,
+    painel: BarChart3,
     reservas: CalendarDays,
     quadras: Building,
     clientes: UserCheck,
@@ -1165,7 +2317,8 @@ const QuadraManagementSystem = () => {
   };
 
   const tabLabels = {
-    dashboard: 'Painel',
+    dashboard: 'Início',
+    painel: 'Painel',
     reservas: 'Reservas',
     quadras: 'Quadras',
     clientes: 'Clientes',
@@ -1765,7 +2918,10 @@ const QuadraManagementSystem = () => {
           {activeTab === 'reservas' && (
             <div className="space-y-4 md:space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-lg md:text-xl font-semibold text-gray-900">Reservas</h2>
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900">Reservas por Cliente</h2>
+                  <p className="text-sm text-gray-600">Clique no cliente para ver suas reservas</p>
+                </div>
                 <button
                   onClick={() => {
                     setModalType('reserva');
@@ -1778,12 +2934,12 @@ const QuadraManagementSystem = () => {
                 </button>
               </div>
 
-              {/* Filtros Mobile */}
+              {/* Filtros */}
               <div className="bg-white p-4 rounded-lg shadow space-y-3 md:space-y-0 md:flex md:space-x-4">
                 <div className="flex-1">
                   <input
                     type="text"
-                    placeholder="Buscar..."
+                    placeholder="Buscar cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -1795,182 +2951,373 @@ const QuadraManagementSystem = () => {
                     value={filtroData}
                     onChange={(e) => setFiltroData(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    placeholder="Filtrar por data"
                   />
+                </div>
+                <div className="w-full md:w-auto">
+                  <select
+                    value={quadraImpressao}
+                    onChange={(e) => setQuadraImpressao(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Todas as Quadras</option>
+                    {quadras.filter(q => q.ativa).map(quadra => (
+                      <option key={quadra.id} value={quadra.id}>{quadra.nome}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Lista de Reservas Mobile */}
-              <div className="space-y-3 md:hidden">
-                {reservasFiltradas.map((reserva) => {
-                  const quadra = quadras.find(q => q.id === reserva.quadraId);
-                  const cliente = clientes.find(c => c.id === reserva.clienteId);
-                  return (
-                    <div key={reserva.id} className="bg-white rounded-lg shadow p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-gray-900">{quadra?.nome}</h3>
-                            {reserva.tipoReserva === 'mensal' && (
-                              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium">
-                                📅 MENSAL
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600">{cliente?.nome}</p>
-                          {reserva.tipoReserva === 'mensal' && reserva.mesReferencia && (
-                            <p className="text-xs text-purple-600 font-medium">
-                              Mês: {reserva.mesReferencia}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
-                          reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {reserva.status}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                        <div>Data: {reserva.data}</div>
-                        <div>Valor: R$ {reserva.valor?.toFixed(2)}</div>
-                        <div>Início: {reserva.horaInicio}</div>
-                        <div>Fim: {reserva.horaFim}</div>
-                      </div>
-                      
-                      {/* Status de Pagamento */}
-                      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                        <div className="flex items-center">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
-                            reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {reserva.statusPagamento || 'Pendente'}
-                          </span>
-                        </div>
-                        <div className="text-green-600 font-medium">
-                          Pago: R$ {(reserva.valorPago || 0).toFixed(2)}
-                        </div>
-                      </div>
-                      
-                      {reserva.valorPago > 0 && (
-                        <div className="text-xs text-blue-600 mb-2">
-                          {reserva.formaPagamento && `Forma: ${reserva.formaPagamento}`}
-                          {reserva.dataPagamento && ` • Data: ${new Date(reserva.dataPagamento).toLocaleDateString('pt-BR')}`}
-                        </div>
-                      )}
+              {/* Lista de Clientes com Reservas */}
+              <div className="space-y-3">
+                {(() => {
+                  // Agrupar reservas por cliente
+                  const reservasPorCliente = {};
+                  const clientesFiltrados = clientes.filter(cliente => {
+                    if (searchTerm && !cliente.nome.toLowerCase().includes(searchTerm.toLowerCase())) {
+                      return false;
+                    }
+                    return true;
+                  });
 
-                      <div className="flex space-x-2">
+                  // Filtrar reservas baseado nos filtros
+                  const reservasFiltradas = reservas.filter(reserva => {
+                    const matchData = !filtroData || reserva.data === filtroData;
+                    const matchQuadra = !quadraImpressao || reserva.quadraId == quadraImpressao;
+                    return matchData && matchQuadra;
+                  });
+
+                  // Agrupar reservas por cliente
+                  reservasFiltradas.forEach(reserva => {
+                    const cliente = clientes.find(c => c.id === reserva.clienteId);
+                    if (cliente && clientesFiltrados.find(c => c.id === cliente.id)) {
+                      if (!reservasPorCliente[cliente.id]) {
+                        reservasPorCliente[cliente.id] = {
+                          cliente: cliente,
+                          reservas: []
+                        };
+                      }
+                      reservasPorCliente[cliente.id].reservas.push(reserva);
+                    }
+                  });
+
+                  // Ordenar clientes por nome
+                  const clientesComReservas = Object.values(reservasPorCliente)
+                    .sort((a, b) => a.cliente.nome.localeCompare(b.cliente.nome));
+
+                  if (clientesComReservas.length === 0) {
+                    return (
+                      <div className="text-center py-12 bg-white rounded-lg shadow">
+                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma reserva encontrada</h3>
+                        <p className="text-gray-500 mb-4">
+                          {searchTerm || filtroData || quadraImpressao ? 
+                            'Ajuste os filtros para ver as reservas.' :
+                            'Comece criando uma nova reserva.'
+                          }
+                        </p>
                         <button
-                          onClick={() => editarReserva(reserva)}
-                          className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700"
+                          onClick={() => {
+                            setModalType('reserva');
+                            setShowModal(true);
+                          }}
+                          className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 mx-auto"
                         >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => excluirReserva(reserva.id)}
-                          className="bg-red-600 text-white px-3 py-2 rounded text-sm hover:bg-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
+                          <Plus className="h-4 w-4" />
+                          <span>Nova Reserva</span>
                         </button>
                       </div>
-                    </div>
-                  );
-                })}
-                {reservasFiltradas.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    Nenhuma reserva encontrada
-                  </div>
-                )}
-              </div>
+                    );
+                  }
 
-              {/* Tabela Desktop */}
-              <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quadra</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pagamento</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {reservasFiltradas.map((reserva) => {
-                        const quadra = quadras.find(q => q.id === reserva.quadraId);
-                        const cliente = clientes.find(c => c.id === reserva.clienteId);
-                        return (
-                          <tr key={reserva.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {reserva.data} {reserva.horaInicio}-{reserva.horaFim}
-                              {reserva.tipoReserva === 'mensal' && (
-                                <div className="text-xs text-purple-600 font-medium">
-                                  📅 Mensal: {reserva.mesReferencia}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              <div className="flex items-center gap-2">
-                                {quadra?.nome}
-                                {reserva.tipoReserva === 'mensal' && (
-                                  <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
-                                    MENSAL
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cliente?.nome}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">R$ {reserva.valor?.toFixed(2)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
-                                reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {reserva.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm">
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
-                                  reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-red-100 text-red-800'
-                                }`}>
-                                  {reserva.statusPagamento || 'Pendente'}
+                  return clientesComReservas.map(({ cliente, reservas: reservasCliente }) => {
+                    const isExpanded = clientesExpandidos[cliente.id];
+                    const totalReservas = reservasCliente.length;
+                    const valorTotalCliente = reservasCliente.reduce((acc, r) => acc + (r.valor || 0), 0);
+                    const valorPagoCliente = reservasCliente.reduce((acc, r) => acc + (r.valorPago || 0), 0);
+                    const reservasPendentes = reservasCliente.filter(r => (r.statusPagamento || 'Pendente') !== 'Pago').length;
+
+                    return (
+                      <div key={cliente.id} className="bg-white rounded-lg shadow overflow-hidden">
+                        {/* Cabeçalho do Cliente - Clicável */}
+                        <div 
+                          className="p-4 cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-blue-500"
+                          onClick={() => toggleClienteExpandido(cliente.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-blue-600 font-medium text-lg">
+                                  {cliente.nome.charAt(0).toUpperCase()}
                                 </span>
                               </div>
-                              <div className="text-xs text-green-600 font-medium">
-                                R$ {(reserva.valorPago || 0).toFixed(2)}
-                                {reserva.valorPago > 0 && reserva.formaPagamento && (
-                                  <span className="text-gray-500"> • {reserva.formaPagamento}</span>
+                              <div>
+                                <h3 className="text-lg font-medium text-gray-900">{cliente.nome}</h3>
+                                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                  <span>{cliente.telefone}</span>
+                                  <span>•</span>
+                                  <span>{totalReservas} reserva{totalReservas !== 1 ? 's' : ''}</span>
+                                  {reservasPendentes > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-red-600 font-medium">
+                                        {reservasPendentes} pendente{reservasPendentes !== 1 ? 's' : ''}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="text-right">
+                                <div className="text-lg font-bold text-blue-600">
+                                  R$ {valorTotalCliente.toFixed(2)}
+                                </div>
+                                <div className="text-sm text-green-600 font-medium">
+                                  Pago: R$ {valorPagoCliente.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="transition-transform duration-200">
+                                {isExpanded ? (
+                                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <span className="text-blue-600 font-bold">−</span>
+                                  </div>
+                                ) : (
+                                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <span className="text-gray-600 font-bold">+</span>
+                                  </div>
                                 )}
                               </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <button
-                                onClick={() => editarReserva(reserva)}
-                                className="text-green-600 hover:text-green-900 mr-3"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => excluirReserva(reserva.id)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reservas do Cliente - Expansível */}
+                        {isExpanded && (
+                          <div className="border-t border-gray-200">
+                            <div className="overflow-x-auto">
+                              {/* Desktop - Tabela */}
+                              <div className="hidden md:block">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quadra</th>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pagamento</th>
+                                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {reservasCliente
+                                      .sort((a, b) => new Date(b.data) - new Date(a.data))
+                                      .map((reserva) => {
+                                        const quadra = quadras.find(q => q.id === reserva.quadraId);
+                                        return (
+                                          <tr key={reserva.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                              <div>
+                                                <div className="font-medium">
+                                                  {new Date(reserva.data).toLocaleDateString('pt-BR')}
+                                                </div>
+                                                <div className="text-gray-600">
+                                                  {reserva.horaInicio} - {reserva.horaFim}
+                                                </div>
+                                                {reserva.tipoReserva === 'mensal' && (
+                                                  <div className="text-xs text-purple-600 font-medium mt-1">
+                                                    {reserva.periodoReal ? (
+                                                      <>📅 {reserva.periodoReal}</>
+                                                    ) : (
+                                                      <>📅 Mensal: {reserva.mesReferencia}</>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                              <div className="flex items-center gap-2">
+                                                {quadra?.nome}
+                                                {reserva.tipoReserva === 'mensal' && (
+                                                  <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800">
+                                                    MENSAL
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">
+                                              R$ {(reserva.valor || 0).toFixed(2)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                                reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                                                reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
+                                              }`}>
+                                                {reserva.status}
+                                              </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                              <div className="text-sm">
+                                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                                  reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
+                                                  reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                                  'bg-red-100 text-red-800'
+                                                }`}>
+                                                  {reserva.statusPagamento || 'Pendente'}
+                                                </span>
+                                              </div>
+                                              <div className="text-xs text-green-600 font-medium mt-1">
+                                                R$ {(reserva.valorPago || 0).toFixed(2)}
+                                                {reserva.valorPago > 0 && reserva.formaPagamento && (
+                                                  <span className="text-gray-500"> • {reserva.formaPagamento}</span>
+                                                )}
+                                              </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                              <div className="flex space-x-2">
+                                                <button
+                                                  onClick={() => editarReserva(reserva)}
+                                                  className="text-green-600 hover:text-green-900"
+                                                  title="Editar reserva"
+                                                >
+                                                  <Edit className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                  onClick={() => excluirReserva(reserva.id)}
+                                                  className="text-red-600 hover:text-red-900"
+                                                  title="Excluir reserva"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {/* Mobile - Cards */}
+                              <div className="md:hidden p-4 space-y-3">
+                                {reservasCliente
+                                  .sort((a, b) => new Date(b.data) - new Date(a.data))
+                                  .map((reserva) => {
+                                    const quadra = quadras.find(q => q.id === reserva.quadraId);
+                                    return (
+                                      <div key={reserva.id} className="bg-gray-50 rounded-lg p-3 border">
+                                        <div className="flex justify-between items-start mb-2">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <h4 className="font-medium text-gray-900">{quadra?.nome}</h4>
+                                              {reserva.tipoReserva === 'mensal' && (
+                                                <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 font-medium">
+                                                  📅 MENSAL
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="text-sm text-gray-600">
+                                              {new Date(reserva.data).toLocaleDateString('pt-BR')} • {reserva.horaInicio} - {reserva.horaFim}
+                                            </div>
+                                            {reserva.tipoReserva === 'mensal' && (
+                                              <div className="text-xs text-purple-600 font-medium mt-1">
+                                                {reserva.periodoReal ? (
+                                                  <>📅 Período: {reserva.periodoReal}</>
+                                                ) : (
+                                                  <>📅 Ref: {reserva.mesReferencia}</>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="text-right">
+                                            <span className={`px-2 py-1 text-xs rounded-full ${
+                                              reserva.status === 'Confirmada' ? 'bg-green-100 text-green-800' :
+                                              reserva.status === 'Pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                              'bg-red-100 text-red-800'
+                                            }`}>
+                                              {reserva.status}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                                          <div>
+                                            <span className="text-gray-600">Valor:</span>
+                                            <span className="font-medium text-blue-600 ml-1">R$ {(reserva.valor || 0).toFixed(2)}</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-gray-600">Pago:</span>
+                                            <span className="font-medium text-green-600 ml-1">R$ {(reserva.valorPago || 0).toFixed(2)}</span>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center justify-between">
+                                          <span className={`px-2 py-1 text-xs rounded-full ${
+                                            reserva.statusPagamento === 'Pago' ? 'bg-green-100 text-green-800' :
+                                            reserva.statusPagamento === 'Parcial' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-red-100 text-red-800'
+                                          }`}>
+                                            {reserva.statusPagamento || 'Pendente'}
+                                          </span>
+                                          
+                                          <div className="flex space-x-2">
+                                            <button
+                                              onClick={() => editarReserva(reserva)}
+                                              className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
+                                            >
+                                              Editar
+                                            </button>
+                                            <button
+                                              onClick={() => excluirReserva(reserva.id)}
+                                              className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Estatísticas Gerais */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Resumo Geral</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {(() => {
+                        const clientesComReservas = [...new Set(reservas.map(r => r.clienteId))];
+                        return clientesComReservas.length;
+                      })()}
+                    </div>
+                    <div className="text-sm text-gray-600">Clientes Ativos</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{reservas.length}</div>
+                    <div className="text-sm text-gray-600">Total Reservas</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      R$ {reservas.reduce((acc, r) => acc + (r.valor || 0), 0).toFixed(0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Valor Total</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {reservas.filter(r => (r.statusPagamento || 'Pendente') !== 'Pago').length}
+                    </div>
+                    <div className="text-sm text-gray-600">Pendentes</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2005,7 +3352,17 @@ const QuadraManagementSystem = () => {
                       </span>
                     </div>
                     <p className="text-gray-600 mb-2 text-sm">{quadra.modalidade}</p>
-                    <p className="text-gray-900 font-medium mb-4">R$ {quadra.valorHora}/hora</p>
+                    <div className="mb-4">
+                      {quadra.usarTabelaDiferenciada ? (
+                        <div className="text-sm">
+                          <p className="text-orange-600 font-medium">🌅 Manhã/Tarde (06:00-17:59): R$ {quadra.valorManha}/h</p>
+                          <p className="text-blue-600 font-medium">🌙 Noite (18:00-22:59): R$ {quadra.valorNoite}/h</p>
+                          <p className="text-xs text-gray-500 mt-1">Valores diferenciados por período</p>
+                        </div>
+                      ) : (
+                        <p className="text-gray-900 font-medium">R$ {quadra.valorHora}/hora</p>
+                      )}
+                    </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => editarQuadra(quadra)}
@@ -3136,6 +4493,36 @@ const QuadraManagementSystem = () => {
                 )}
               </div>
 
+              {/* Área de Limpeza de Dados */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                <div className="flex items-start space-x-4">
+                  <AlertCircle className="h-8 w-8 text-red-500 mt-1 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-medium text-red-800 mb-2">Área de Limpeza de Dados</h3>
+                    <p className="text-sm text-red-700 mb-4">
+                      <strong>⚠️ OPERAÇÃO IRREVERSÍVEL:</strong> Esta função remove permanentemente todos os dados financeiros do sistema,
+                      incluindo reservas, faturamentos e recebimentos. Use apenas quando necessário resetar o sistema.
+                    </p>
+                    <div className="bg-red-100 p-3 rounded mb-4">
+                      <p className="text-xs text-red-600">
+                        <strong>Dados que serão removidos:</strong><br/>
+                        • Todas as reservas (avulsas e mensais)<br/>
+                        • Todos os faturamentos administrativos<br/>
+                        • Todo histórico de recebimentos<br/>
+                        • Controles de receita e inadimplência
+                      </p>
+                    </div>
+                    <button
+                      onClick={limparDadosFinanceiros}
+                      className="bg-red-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-red-700 font-medium"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                      <span>Limpar Todos os Dados Financeiros</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Estatísticas */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-orange-50 p-4 rounded-lg">
@@ -3164,6 +4551,328 @@ const QuadraManagementSystem = () => {
                       <p className="text-sm font-bold text-blue-600">Hoje</p>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Painel Visual */}
+          {activeTab === 'painel' && (
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-900">Painel Visual das Quadras</h2>
+                  <p className="text-sm text-gray-600">Visualização em tempo real dos horários disponíveis e ocupados</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <input
+                    type="date"
+                    value={dataRelatorio}
+                    onChange={(e) => setDataRelatorio(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <select
+                    value={quadraImpressao}
+                    onChange={(e) => setQuadraImpressao(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Todas as Quadras</option>
+                    {quadras.filter(q => q.ativa).map(quadra => (
+                      <option key={quadra.id} value={quadra.id}>{quadra.nome}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => gerarPDFSemanalVisual()}
+                      className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue-700 text-sm"
+                      title="Exportar PDF Semanal Visual"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="hidden sm:inline">PDF Sem</span>
+                    </button>
+                    <button
+                      onClick={() => gerarXLSSemanalVisual()}
+                      className="bg-purple-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-purple-700 text-sm"
+                      title="Exportar Excel Semanal Visual"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span className="hidden sm:inline">XLS Sem</span>
+                    </button>
+                    <button
+                      onClick={() => gerarExportacaoPainelPDF()}
+                      className="bg-red-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-red-700 text-sm"
+                      title="Exportar PDF Mensal"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="hidden sm:inline">PDF Men</span>
+                    </button>
+                    <button
+                      onClick={() => gerarExportacaoPainelXLS()}
+                      className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 hover:bg-green-700 text-sm"
+                      title="Exportar Excel Mensal"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span className="hidden sm:inline">XLS Men</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Painel de Quadras */}
+              <div className="space-y-6">
+                {(quadraImpressao ? quadras.filter(q => q.id == quadraImpressao) : quadras.filter(q => q.ativa)).map(quadra => {
+                  // Gerar horários de 6h às 23h (slots de 1 hora)
+                  const horarios = [];
+                  for (let h = 6; h < 23; h++) {
+                    horarios.push(`${h.toString().padStart(2, '0')}:00`);
+                  }
+
+                  // Obter reservas da quadra para a semana
+                  const dataInicio = new Date(dataRelatorio);
+                  const diasSemana = [];
+                  
+                  // Gerar 7 dias a partir da data selecionada
+                  for (let i = 0; i < 7; i++) {
+                    const data = new Date(dataInicio);
+                    data.setDate(dataInicio.getDate() + i);
+                    diasSemana.push(data);
+                  }
+
+                  return (
+                    <div key={quadra.id} className="bg-white rounded-lg shadow overflow-hidden">
+                      {/* Cabeçalho da Quadra */}
+                      <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold">{quadra.nome}</h3>
+                            <p className="text-blue-100 text-sm">{quadra.modalidade}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-blue-100 text-sm">Valores:</p>
+                            {quadra.usarTabelaDiferenciada ? (
+                              <div className="text-sm">
+                                <p className="text-orange-200">🌅 R$ {quadra.valorManha}/h</p>
+                                <p className="text-blue-200">🌙 R$ {quadra.valorNoite}/h</p>
+                              </div>
+                            ) : (
+                              <p className="text-xl font-bold">R$ {quadra.valorHora}/h</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Grade de Horários */}
+                      <div className="overflow-x-auto">
+                        <div className="min-w-full">
+                          {/* Cabeçalho dos Dias */}
+                          <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50">
+                            <div className="p-3 text-sm font-medium text-gray-700 border-r border-gray-200">
+                              Horário
+                            </div>
+                            {diasSemana.map((data, index) => (
+                              <div key={index} className="p-3 text-center border-r border-gray-200 last:border-r-0">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {data.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase()}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  {data.getDate().toString().padStart(2, '0')}/{(data.getMonth() + 1).toString().padStart(2, '0')}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Grid de Horários */}
+                          {horarios.map((horario, horarioIndex) => (
+                            <div key={horario} className={`grid grid-cols-8 ${horarioIndex % 2 === 0 ? 'bg-white' : 'bg-gray-25'}`}>
+                              {/* Coluna do Horário */}
+                              <div className="p-3 text-sm font-medium text-gray-700 border-r border-b border-gray-200 bg-gray-50">
+                                {horario}
+                              </div>
+                              
+                              {/* Colunas dos Dias */}
+                              {diasSemana.map((data, diaIndex) => {
+                                const dataStr = data.toISOString().split('T')[0];
+                                const horaInicio = horario;
+                                const horaFim = `${(parseInt(horario.split(':')[0]) + 1).toString().padStart(2, '0')}:00`;
+                                
+                                // Buscar reservas que se sobrepõem com este slot
+                                const reservasNoSlot = reservas.filter(r => {
+                                  if (r.quadraId !== quadra.id || r.data !== dataStr) return false;
+                                  
+                                  // Verificar sobreposição de horários
+                                  const reservaInicio = r.horaInicio;
+                                  const reservaFim = r.horaFim;
+                                  
+                                  return (reservaInicio < horaFim && reservaFim > horaInicio);
+                                });
+
+                                const reserva = reservasNoSlot[0]; // Pegar a primeira (deve ser única)
+                                const isOcupado = reservasNoSlot.length > 0;
+                                const isHoje = dataStr === new Date().toISOString().split('T')[0];
+                                const isPast = data < new Date().setHours(0, 0, 0, 0);
+                                
+                                return (
+                                  <div 
+                                    key={`${horario}-${diaIndex}`} 
+                                    className={`p-2 border-r border-b border-gray-200 last:border-r-0 min-h-[60px] relative ${
+                                      isPast ? 'bg-gray-100' :
+                                      isOcupado ? (
+                                        reserva.status === 'Confirmada' ? 'bg-green-100 border-l-4 border-green-500' :
+                                        reserva.status === 'Pendente' ? 'bg-yellow-100 border-l-4 border-yellow-500' :
+                                        'bg-red-100 border-l-4 border-red-500'
+                                      ) : (
+                                        isHoje ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
+                                      )
+                                    } cursor-pointer transition-colors`}
+                                    title={
+                                      isOcupado ? 
+                                        `${clientes.find(c => c.id === reserva.clienteId)?.nome} - ${reserva.horaInicio} às ${reserva.horaFim}` :
+                                        isPast ? 'Horário passado' : 'Disponível - Clique para reservar'
+                                    }
+                                    onClick={() => {
+                                      if (!isPast && !isOcupado) {
+                                        // Calcular valor automaticamente ao abrir o modal
+                                        const horaInicioTime = new Date(`2000-01-01T${horaInicio}`);
+                                        const horaFimTime = new Date(`2000-01-01T${horaFim}`);
+                                        const minutos = (horaFimTime - horaInicioTime) / (1000 * 60);
+                                        const horas = minutos / 60;
+                                        
+                                        let valorPorHora;
+                                        if (quadra.usarTabelaDiferenciada) {
+                                          valorPorHora = calcularValorPorHorario(quadra, horaInicio);
+                                        } else {
+                                          valorPorHora = parseFloat(quadra.valorHora) || 0;
+                                        }
+                                        
+                                        const valorCalculado = horas * valorPorHora;
+                                        
+                                        setFormReserva({
+                                          ...formReserva,
+                                          quadraId: quadra.id.toString(),
+                                          data: dataStr,
+                                          horaInicio: horaInicio,
+                                          horaFim: horaFim,
+                                          tipoReserva: 'avulsa',
+                                          valor: valorCalculado.toFixed(2)
+                                        });
+                                        setModalType('reserva');
+                                        setShowModal(true);
+                                      }
+                                    }}
+                                  >
+                                    {isOcupado ? (
+                                      <div className="text-xs">
+                                        <div className="font-medium text-gray-900 truncate">
+                                          {clientes.find(c => c.id === reserva.clienteId)?.nome}
+                                        </div>
+                                        <div className="text-gray-600">
+                                          {reserva.horaInicio} - {reserva.horaFim}
+                                        </div>
+                                        <div className={`text-xs px-1 py-0.5 rounded mt-1 inline-block ${
+                                          reserva.status === 'Confirmada' ? 'bg-green-200 text-green-800' :
+                                          reserva.status === 'Pendente' ? 'bg-yellow-200 text-yellow-800' :
+                                          'bg-red-200 text-red-800'
+                                        }`}>
+                                          {reserva.status}
+                                        </div>
+                                      </div>
+                                    ) : isPast ? (
+                                      <div className="text-xs text-gray-400 text-center pt-4">
+                                        ⏰
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-gray-400 text-center pt-4 opacity-0 group-hover:opacity-100">
+                                        + Reservar
+                                      </div>
+                                    )}
+                                    
+                                    {isHoje && !isOcupado && (
+                                      <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Resumo da Quadra */}
+                      <div className="bg-gray-50 p-4 border-t">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          {(() => {
+                            const semanaReservas = reservas.filter(r => {
+                              const dataReserva = new Date(r.data);
+                              const dataInicio = new Date(dataRelatorio);
+                              const dataFim = new Date(dataInicio);
+                              dataFim.setDate(dataInicio.getDate() + 6);
+                              return r.quadraId === quadra.id && 
+                                     dataReserva >= dataInicio && dataReserva <= dataFim;
+                            });
+                            
+                            const totalSlots = 7 * 17; // 7 dias × 17 horários (6h-23h)
+                            const slotsOcupados = semanaReservas.length;
+                            const ocupacao = ((slotsOcupados / totalSlots) * 100).toFixed(1);
+                            const receitaSemana = semanaReservas.reduce((acc, r) => acc + (r.valor || 0), 0);
+                            
+                            return (
+                              <>
+                                <div>
+                                  <span className="text-gray-600">Reservas na Semana:</span>
+                                  <span className="font-bold text-blue-600 ml-1">{slotsOcupados}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Taxa de Ocupação:</span>
+                                  <span className="font-bold text-purple-600 ml-1">{ocupacao}%</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Receita Semana:</span>
+                                  <span className="font-bold text-green-600 ml-1">R$ {receitaSemana.toFixed(2)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Slots Disponíveis:</span>
+                                  <span className="font-bold text-orange-600 ml-1">{totalSlots - slotsOcupados}</span>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legenda */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Legenda</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-green-100 border-l-4 border-green-500 rounded-sm"></div>
+                    <span>Confirmada</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-sm"></div>
+                    <span>Pendente</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-red-100 border-l-4 border-red-500 rounded-sm"></div>
+                    <span>Cancelada</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-blue-50 border border-blue-200 rounded-sm"></div>
+                    <span>Disponível</span>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-700 mb-2">
+                    <strong>💡 Dica:</strong> Clique em qualquer horário disponível para fazer uma reserva rápida. 
+                    Os horários de hoje aparecem destacados em azul com um ponto pulsante.
+                  </p>
+                  <p className="text-sm text-blue-700">
+                    <strong>📊 Exportação:</strong> Use os botões PDF e XLS para gerar relatórios mensais completos com:
+                    calendário visual, estatísticas detalhadas, resumo por quadra e dados financeiros.
+                  </p>
                 </div>
               </div>
             </div>
@@ -4070,13 +5779,67 @@ const QuadraManagementSystem = () => {
                     <option value="Campo de Futebol">Campo de Futebol</option>
                     <option value="Quadra de Futsal">Quadra de Futsal</option>
                   </select>
-                  <input
-                    type="number"
-                    placeholder="Valor por hora"
-                    value={formQuadra.valorHora}
-                    onChange={(e) => setFormQuadra({...formQuadra, valorHora: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  />
+                  
+                  {/* Tabela de Valores Diferenciados */}
+                  <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                    <label className="flex items-center text-sm font-medium text-blue-800 mb-3">
+                      <input
+                        type="checkbox"
+                        checked={formQuadra.usarTabelaDiferenciada}
+                        onChange={(e) => setFormQuadra({...formQuadra, usarTabelaDiferenciada: e.target.checked})}
+                        className="mr-2"
+                      />
+                      Usar valores diferenciados por período
+                    </label>
+                    
+                    {formQuadra.usarTabelaDiferenciada ? (
+                      <div className="space-y-3">
+                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                          <label className="block text-sm font-medium text-orange-800 mb-1">
+                            🌅 Manhã/Tarde (06:00 - 17:59)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Ex: 80.00"
+                            value={formQuadra.valorManha}
+                            onChange={(e) => setFormQuadra({...formQuadra, valorManha: e.target.value})}
+                            className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
+                          />
+                          <p className="text-xs text-orange-600 mt-1">Das 06:00 até 17:59</p>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                          <label className="block text-sm font-medium text-blue-800 mb-1">
+                            🌙 Noite (18:00 - 22:59)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Ex: 100.00"
+                            value={formQuadra.valorNoite}
+                            onChange={(e) => setFormQuadra({...formQuadra, valorNoite: e.target.value})}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm"
+                          />
+                          <p className="text-xs text-blue-600 mt-1">Das 18:00 até 22:59</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Valor único por hora
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Valor por hora"
+                          value={formQuadra.valorHora}
+                          onChange={(e) => setFormQuadra({...formQuadra, valorHora: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
                   <label className="flex items-center text-sm">
                     <input
                       type="checkbox"
@@ -4198,6 +5961,9 @@ const QuadraManagementSystem = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                         placeholder="Selecione o mês"
                       />
+                      <p className="text-xs text-blue-600 mt-1">
+                        💡 O período real será calculado a partir da primeira data disponível (30 dias corridos)
+                      </p>
                     </div>
                   )}
                   {/* Seleção de Dias da Semana - apenas para reserva mensal */}
@@ -4261,47 +6027,158 @@ const QuadraManagementSystem = () => {
                     />
                   </div>
                   
-                  {/* Cálculo e Exibição de Valores */}
-                  {formReserva.tipoReserva === 'mensal' && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && (
-                    <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
-                      <h4 className="text-sm font-medium text-purple-800 mb-3">💰 Cálculo da Reserva Mensal</h4>
+                  {/* Prévia do Período Real - Cálculo Inteligente */}
+                  {formReserva.tipoReserva === 'mensal' && formReserva.mesReferencia && formReserva.quadraId && formReserva.diasSemana.length > 0 && (
+                    <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+                      <h4 className="text-sm font-medium text-amber-800 mb-3">📅 Prévia do Período de Locação (Cálculo Inteligente)</h4>
                       {(() => {
-                        const valorMensal = calcularValorMensal();
-                        const quadraSelecionada = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+                        const [ano, mes] = formReserva.mesReferencia.split('-');
+                        const diasSemanaMap = {
+                          'domingo': 0, 'segunda': 1, 'terca': 2, 'quarta': 3, 
+                          'quinta': 4, 'sexta': 5, 'sabado': 6
+                        };
+                        
+                        // Encontrar primeira data disponível no mês selecionado (a partir de hoje)
+                        let primeiraDataDisponivel = null;
+                        const diasDoMes = new Date(parseInt(ano), parseInt(mes), 0).getDate();
+                        const mesNome = new Date(parseInt(ano), parseInt(mes) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                        
+                        // Data de hoje para não buscar datas passadas
+                        const hoje = new Date();
+                        hoje.setHours(0, 0, 0, 0);
+                        
+                        // Buscar do primeiro ao último dia do mês, mas só datas futuras ou de hoje
+                        for (let dia = 1; dia <= diasDoMes; dia++) {
+                          const dataAtual = new Date(parseInt(ano), parseInt(mes) - 1, dia);
+                          const diaSemanaAtual = dataAtual.getDay();
+                          
+                          // Pular datas que já passaram
+                          if (dataAtual < hoje) {
+                            continue;
+                          }
+                          
+                          // Verificar se este dia coincide com algum dos dias selecionados
+                          const diaCoincide = formReserva.diasSemana.some(diaSelecionado => 
+                            diasSemanaMap[diaSelecionado] === diaSemanaAtual
+                          );
+                          
+                          if (diaCoincide) {
+                            primeiraDataDisponivel = dataAtual;
+                            break; // Encontrou a primeira data disponível, parar busca
+                          }
+                        }
+                        
+                        if (primeiraDataDisponivel) {
+                          const dataFinal = new Date(primeiraDataDisponivel);
+                          dataFinal.setDate(dataFinal.getDate() + 29); // +29 para completar 30 dias total
+                          const periodoMensal = `${primeiraDataDisponivel.toLocaleDateString('pt-BR')} a ${dataFinal.toLocaleDateString('pt-BR')}`;
+                          
+                          return (
+                            <div className="space-y-2 text-sm text-amber-700">
+                              <div><strong>Mês selecionado:</strong> {mesNome.charAt(0).toUpperCase() + mesNome.slice(1)}</div>
+                              <div><strong>Dias escolhidos:</strong> {formReserva.diasSemana.join(', ')}</div>
+                              <div className="text-green-700 font-medium bg-green-100 p-2 rounded">
+                                <strong>📅 Período real calculado:</strong> {periodoMensal}
+                              </div>
+                              <div className="text-xs text-amber-600">
+                                ✅ Sistema encontrou a primeira data disponível automaticamente<br/>
+                                ⏱️ Período de exatos 30 dias corridos a partir da primeira sessão<br/>
+                                🔍 Verificação automática de conflitos de horário
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="text-red-700 text-sm">
+                              ❌ Não foi encontrada nenhuma data disponível no mês selecionado para os dias da semana escolhidos.
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Cálculo de Valor Mensal */}
+                  {formReserva.tipoReserva === 'mensal' && formReserva.valorMensal > 0 && (
+                    <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                      <h4 className="text-sm font-medium text-purple-800 mb-3">💰 Valores Calculados (SEM DESCONTO)</h4>
+                      <div className="space-y-2 text-sm text-purple-700">
+                        <div><strong>Valor total mensal:</strong> R$ {formReserva.valorMensal.toFixed(2)}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-xs text-purple-600 mb-1">Número de Parcelas:</label>
+                            <select
+                              value={formReserva.numeroParcelas}
+                              onChange={(e) => setFormReserva({...formReserva, numeroParcelas: parseInt(e.target.value)})}
+                              className="w-full px-2 py-1 border border-purple-300 rounded text-sm"
+                            >
+                              <option value={1}>1x (à vista)</option>
+                              <option value={2}>2x</option>
+                              <option value={3}>3x</option>
+                              <option value={4}>4x</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-purple-600 mb-1">Valor por Parcela:</label>
+                            <div className="px-2 py-1 bg-purple-100 rounded text-sm font-medium">
+                              R$ {formReserva.valorParcela?.toFixed(2) || '0.00'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-purple-600 bg-purple-100 p-2 rounded">
+                          📊 Cálculo: {formReserva.diasSemana.length} sessões/semana × 4.33 semanas/mês = aprox. {Math.round(formReserva.diasSemana.length * 4.33)} sessões<br/>
+                          💡 Valores aplicados conforme tabela da quadra (manhã/tarde ou noite)
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cálculo automático para reserva avulsa */}
+                  {formReserva.tipoReserva === 'avulsa' && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && (
+                    <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                      <h4 className="text-sm font-medium text-green-800 mb-3">💰 Cálculo Automático do Valor</h4>
+                      {(() => {
+                        const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
+                        if (!quadra || formReserva.horaInicio >= formReserva.horaFim) {
+                          return <div className="text-red-700 text-sm">⚠️ Selecione uma quadra e horários válidos</div>;
+                        }
+                        
                         const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
                         const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
                         const minutos = (horaFim - horaInicio) / (1000 * 60);
                         const horas = minutos / 60;
-                        const valorSessao = horas * (quadraSelecionada?.valorHora || 0);
-                        const sessoesPorMes = Math.round(formReserva.diasSemana.length * 4.33);
-                        const valorSemDesconto = valorSessao * sessoesPorMes;
-                        const desconto = valorSemDesconto * 0.1;
+                        
+                        let valorPorHora, periodo;
+                        if (quadra.usarTabelaDiferenciada) {
+                          const hora = parseInt(formReserva.horaInicio.split(':')[0]);
+                          if (hora >= 6 && hora < 18) {
+                            valorPorHora = parseFloat(quadra.valorManha) || 0;
+                            periodo = 'Manhã/Tarde (06:00-17:59)';
+                          } else if (hora >= 18 && hora < 23) {
+                            valorPorHora = parseFloat(quadra.valorNoite) || 0;
+                            periodo = 'Noite (18:00-22:59)';
+                          } else {
+                            valorPorHora = parseFloat(quadra.valorHora) || 0;
+                            periodo = 'Horário especial';
+                          }
+                        } else {
+                          valorPorHora = parseFloat(quadra.valorHora) || 0;
+                          periodo = 'Valor único';
+                        }
+                        
+                        const valorTotal = horas * valorPorHora;
                         
                         return (
-                          <div className="text-sm text-purple-700 space-y-2">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <strong>Valor por sessão:</strong><br/>
-                                R$ {valorSessao.toFixed(2)} ({horas.toFixed(1)}h × R$ {quadraSelecionada?.valorHora})
-                              </div>
-                              <div>
-                                <strong>Sessões/mês:</strong><br/>
-                                {sessoesPorMes} ({formReserva.diasSemana.length} dias × 4.33 semanas)
-                              </div>
+                          <div className="space-y-2 text-sm text-green-700">
+                            <div><strong>Quadra:</strong> {quadra.nome}</div>
+                            <div><strong>Período:</strong> {periodo}</div>
+                            <div><strong>Duração:</strong> {horas} hora{horas !== 1 ? 's' : ''} ({minutos} minutos)</div>
+                            <div><strong>Valor por hora:</strong> R$ {valorPorHora.toFixed(2)}</div>
+                            <div className="text-green-800 font-bold bg-green-100 p-2 rounded">
+                              <strong>💰 Valor Total: R$ {valorTotal.toFixed(2)}</strong>
                             </div>
-                            <div className="border-t border-purple-300 pt-2">
-                              <div className="flex justify-between">
-                                <span>Valor sem desconto:</span>
-                                <span>R$ {valorSemDesconto.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between text-green-600">
-                                <span>Desconto mensal (10%):</span>
-                                <span>- R$ {desconto.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between font-bold text-lg border-t border-purple-300 pt-1">
-                                <span>Valor total mensal:</span>
-                                <span>R$ {valorMensal.toFixed(2)}</span>
-                              </div>
+                            <div className="text-xs text-green-600">
+                              ✅ Valor calculado automaticamente conforme tabela da quadra
                             </div>
                           </div>
                         );
@@ -4309,245 +6186,73 @@ const QuadraManagementSystem = () => {
                     </div>
                   )}
 
-                  {/* Opções de Parcelamento - apenas para reserva mensal */}
-                  {formReserva.tipoReserva === 'mensal' && (
-                    <div className="border border-orange-200 rounded-lg p-4 bg-orange-50">
-                      <label className="block text-sm font-medium text-orange-800 mb-3">💳 Opções de Pagamento</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs text-orange-700 mb-1">Número de Parcelas</label>
-                          <select
-                            value={formReserva.numeroParcelas}
-                            onChange={(e) => setFormReserva({...formReserva, numeroParcelas: parseInt(e.target.value)})}
-                            className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
-                          >
-                            <option value={1}>À vista (1x)</option>
-                            <option value={2}>2x sem juros</option>
-                            <option value={3}>3x sem juros</option>
-                            <option value={4}>4x sem juros</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs text-orange-700 mb-1">Valor da Parcela</label>
-                          <div className="px-3 py-2 bg-orange-100 border border-orange-300 rounded-md text-sm font-medium text-orange-800">
-                            {formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 ? 
-                              `R$ ${calcularParcelas(calcularValorMensal(), formReserva.numeroParcelas).toFixed(2)}` : 
-                              'R$ 0,00'
-                            }
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {formReserva.numeroParcelas > 1 && (
-                        <div className="mt-3">
-                          <label className="block text-xs text-orange-700 mb-1">Vencimento da 1ª Parcela</label>
-                          <input
-                            type="date"
-                            value={formReserva.dataVencimentoPrimeiraParcela}
-                            onChange={(e) => setFormReserva({...formReserva, dataVencimentoPrimeiraParcela: e.target.value})}
-                            className="w-full px-3 py-2 border border-orange-300 rounded-md text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Valor para reserva avulsa */}
-                  {formReserva.tipoReserva === 'avulsa' && (
-                    <input
-                      type="number"
-                      placeholder="Valor (opcional)"
-                      value={formReserva.valor}
-                      onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                  )}
-
-                  {/* Aviso sobre disponibilidade */}
-                  {formReserva.tipoReserva === 'avulsa' && formReserva.data && formReserva.quadraId && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="text-sm text-blue-700">
-                        <strong>Disponibilidade:</strong>
-                        {(() => {
-                          const reservasNoDia = reservas.filter(r => 
-                            r.data === formReserva.data && 
-                            r.quadraId === parseInt(formReserva.quadraId) &&
-                            (!editingItem || r.id !== editingItem.id)
-                          );
-                          const quadraSelecionada = quadras.find(q => q.id === parseInt(formReserva.quadraId));
-                          
-                          return (
-                            <div className="mt-2">
-                              <p>• Quadra: <strong>{quadraSelecionada?.nome}</strong></p>
-                              <p>• Data: <strong>{new Date(formReserva.data + 'T00:00:00').toLocaleDateString('pt-BR')}</strong></p>
-                              <p>• Reservas no dia: <strong>{reservasNoDia.length}/6</strong></p>
-                              <p>• Horário de funcionamento: <strong>06:00 às 23:00</strong></p>
-                              <p>• Intervalo entre reservas: <strong>mínimo 5 minutos</strong></p>
-                              
-                              {reservasNoDia.length > 0 && (
-                                <div className="mt-2">
-                                  <p className="font-medium">Horários ocupados:</p>
-                                  <div className="space-y-1">
-                                    {reservasNoDia
-                                      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
-                                      .map((r, idx) => {
-                                        const cliente = clientes.find(c => c.id === r.clienteId);
-                                        return (
-                                          <div key={idx} className="text-xs bg-white p-2 rounded border">
-                                            <strong>{r.horaInicio} - {r.horaFim}</strong> • {cliente?.nome}
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {reservasNoDia.length >= 6 && (
-                                <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700">
-                                  <strong>⚠️ Limite atingido!</strong> Esta quadra já possui 6 reservas neste dia.
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                  {/* Status - apenas para reserva avulsa */}
-                  {formReserva.tipoReserva === 'avulsa' && (
+                  {/* Campos de valor - apenas para reserva avulsa ou edição */}
+                  {(formReserva.tipoReserva === 'avulsa' || editingItem) && (
                     <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={formReserva.status}
-                        onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
-                        className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      >
-                        <option value="Confirmada">Confirmada</option>
-                        <option value="Pendente">Pendente</option>
-                        <option value="Cancelada">Cancelada</option>
-                      </select>
-                      <select
-                        value={formReserva.statusPagamento}
-                        onChange={(e) => {
-                          const novoStatus = e.target.value;
-                          setFormReserva({
-                            ...formReserva, 
-                            statusPagamento: novoStatus,
-                            // Auto-ajustar valorPago baseado no status
-                            valorPago: novoStatus === 'Pago' && !formReserva.valorPago ? formReserva.valor : formReserva.valorPago,
-                            dataPagamento: novoStatus !== 'Pendente' && !formReserva.dataPagamento ? new Date().toISOString().split('T')[0] : formReserva.dataPagamento
-                          });
-                        }}
-                        className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      >
-                        <option value="Pendente">Pendente</option>
-                        <option value="Parcial">Parcial</option>
-                        <option value="Pago">Pago</option>
-                      </select>
-                    </div>
-                  )}
-                  
-                  {/* Campos de Pagamento - Mostrar apenas para reserva avulsa e se não for Pendente */}
-                  {formReserva.tipoReserva === 'avulsa' && formReserva.statusPagamento !== 'Pendente' && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-3">
-                      <h4 className="text-sm font-medium text-green-800">Informações de Pagamento</h4>
-                      
-                      <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Valor Total</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Valor total"
+                          value={formReserva.valor}
+                          onChange={(e) => setFormReserva({...formReserva, valor: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Valor Pago</label>
                         <input
                           type="number"
                           step="0.01"
                           placeholder="Valor pago"
                           value={formReserva.valorPago}
-                          onChange={(e) => {
-                            const valorPago = parseFloat(e.target.value) || 0;
-                            const valorTotal = parseFloat(formReserva.valor) || 0;
-                            let novoStatus = 'Pendente';
-                            
-                            if (valorPago === 0) {
-                              novoStatus = 'Pendente';
-                            } else if (valorPago >= valorTotal) {
-                              novoStatus = 'Pago';
-                            } else {
-                              novoStatus = 'Parcial';
-                            }
-                            
-                            setFormReserva({
-                              ...formReserva, 
-                              valorPago: e.target.value,
-                              statusPagamento: novoStatus
-                            });
-                          }}
-                          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        />
-                        <input
-                          type="date"
-                          value={formReserva.dataPagamento}
-                          onChange={(e) => setFormReserva({...formReserva, dataPagamento: e.target.value})}
-                          className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                          onChange={(e) => setFormReserva({...formReserva, valorPago: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                         />
                       </div>
-                      
-                      <select
-                        value={formReserva.formaPagamento}
-                        onChange={(e) => setFormReserva({...formReserva, formaPagamento: e.target.value})}
+                    </div>
+                  )}
+
+                  {/* Valor pago na criação - para reserva mensal */}
+                  {formReserva.tipoReserva === 'mensal' && !editingItem && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Valor Pago na Reserva</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formReserva.valorPago}
+                        onChange={(e) => setFormReserva({...formReserva, valorPago: e.target.value})}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                      >
-                        <option value="">Forma de pagamento</option>
-                        <option value="Pix">Pix</option>
-                        <option value="Dinheiro">Dinheiro</option>
-                        <option value="Transferência">Transferência</option>
-                        <option value="Cartão">Cartão</option>
-                        <option value="Cheque">Cheque</option>
-                      </select>
-                      
-                      {formReserva.valorPago && formReserva.valor && (
-                        <div className="text-xs text-green-700">
-                          <strong>Saldo:</strong> R$ {((parseFloat(formReserva.valor) || 0) - (parseFloat(formReserva.valorPago) || 0)).toFixed(2)}
-                          {parseFloat(formReserva.valorPago) >= parseFloat(formReserva.valor) && ' ✓ Pago'}
-                        </div>
-                      )}
+                      />
                     </div>
                   )}
 
-                  {/* Entrada inicial para reserva mensal */}
-                  {formReserva.tipoReserva === 'mensal' && (
-                    <div className="border border-green-200 rounded-lg p-4 bg-green-50">
-                      <h4 className="text-sm font-medium text-green-800 mb-3">💰 Pagamento Inicial (Opcional)</h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Valor pago na reserva"
-                            value={formReserva.valorPago}
-                            onChange={(e) => setFormReserva({...formReserva, valorPago: e.target.value})}
-                            className="w-full px-3 py-2 border border-green-300 rounded-md text-sm"
-                          />
-                        </div>
-                        <div>
-                          <select
-                            value={formReserva.formaPagamento}
-                            onChange={(e) => setFormReserva({...formReserva, formaPagamento: e.target.value})}
-                            className="w-full px-3 py-2 border border-green-300 rounded-md text-sm"
-                          >
-                            <option value="">Forma de pagamento</option>
-                            <option value="Pix">Pix</option>
-                            <option value="Dinheiro">Dinheiro</option>
-                            <option value="Transferência">Transferência</option>
-                            <option value="Cartão">Cartão</option>
-                          </select>
-                        </div>
-                      </div>
-                      {formReserva.valorPago && formReserva.quadraId && formReserva.horaInicio && formReserva.horaFim && formReserva.diasSemana.length > 0 && (
-                        <div className="mt-2 text-xs text-green-700">
-                          <strong>Saldo restante:</strong> R$ {(calcularValorMensal() - parseFloat(formReserva.valorPago || 0)).toFixed(2)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Observações */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formReserva.status}
+                      onChange={(e) => setFormReserva({...formReserva, status: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="Confirmada">Confirmada</option>
+                      <option value="Pendente">Pendente</option>
+                      <option value="Cancelada">Cancelada</option>
+                    </select>
+                    <select
+                      value={formReserva.formaPagamento}
+                      onChange={(e) => setFormReserva({...formReserva, formaPagamento: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    >
+                      <option value="">Forma de pagamento</option>
+                      <option value="Dinheiro">Dinheiro</option>
+                      <option value="PIX">PIX</option>
+                      <option value="Cartão">Cartão</option>
+                      <option value="Transferência">Transferência</option>
+                    </select>
+                  </div>
                   <textarea
-                    placeholder={formReserva.tipoReserva === 'mensal' ? "Observações sobre a reserva mensal (opcional)" : "Observações (opcional)"}
+                    placeholder="Observações"
                     value={formReserva.tipoReserva === 'mensal' ? formReserva.observacoesMensal : formReserva.observacoes}
                     onChange={(e) => {
                       if (formReserva.tipoReserva === 'mensal') {
@@ -4556,8 +6261,7 @@ const QuadraManagementSystem = () => {
                         setFormReserva({...formReserva, observacoes: e.target.value});
                       }
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
                   />
                   <button
                     onClick={adicionarReserva}
@@ -4570,15 +6274,6 @@ const QuadraManagementSystem = () => {
 
               {modalType === 'admin' && (
                 <div className="space-y-4">
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                    <div className="flex">
-                      <Shield className="h-4 w-4 text-orange-500 mr-2 mt-0.5" />
-                      <p className="text-sm text-orange-700">
-                        <strong>Importante:</strong> Mantenha as credenciais seguras. Evite senhas simples.
-                      </p>
-                    </div>
-                  </div>
-                  
                   <input
                     type="text"
                     placeholder="Nome completo"
@@ -4586,32 +6281,33 @@ const QuadraManagementSystem = () => {
                     onChange={(e) => setFormAdmin({...formAdmin, nome: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  
                   <input
                     type="text"
-                    placeholder="Nome de usuário (login)"
+                    placeholder="Nome de usuário"
                     value={formAdmin.usuario}
-                    onChange={(e) => setFormAdmin({...formAdmin, usuario: e.target.value.toLowerCase().replace(/\s+/g, '')})}
+                    onChange={(e) => setFormAdmin({...formAdmin, usuario: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  
                   <div className="relative">
                     <input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Senha de acesso"
+                      type={showAdminPassword ? "text" : "password"}
+                      placeholder="Senha"
                       value={formAdmin.senha}
                       onChange={(e) => setFormAdmin({...formAdmin, senha: e.target.value})}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-sm"
+                      className="w-full px-3 py-2 pr-12 border border-gray-300 rounded-md text-sm"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-500 hover:text-gray-700"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showAdminPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
-                  
                   <select
                     value={formAdmin.cargo}
                     onChange={(e) => setFormAdmin({...formAdmin, cargo: e.target.value})}
@@ -4622,134 +6318,106 @@ const QuadraManagementSystem = () => {
                     <option value="Gerente de Operações">Gerente de Operações</option>
                     <option value="Secretário do Clube">Secretário do Clube</option>
                     <option value="Assistente Administrativo">Assistente Administrativo</option>
-                    <option value="Coordenador de Quadras">Coordenador de Quadras</option>
                   </select>
-
-                  <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
-                    <p><strong>Dicas de Segurança:</strong></p>
-                    <ul className="mt-1 space-y-1">
-                      <li>• Use senhas com pelo menos 8 caracteres</li>
-                      <li>• Combine letras, números e símbolos</li>
-                      <li>• Evite informações pessoais óbvias</li>
-                      <li>• Altere a senha regularmente</li>
-                    </ul>
-                  </div>
-                  
                   <button
                     onClick={adicionarAdmin}
                     className="w-full bg-orange-600 text-white py-2 rounded-md hover:bg-orange-700 text-sm"
                   >
-                    {editingItem ? 'Atualizar Administrador' : 'Adicionar Administrador'}
+                    {editingItem ? 'Atualizar' : 'Adicionar'}
                   </button>
                 </div>
               )}
 
               {modalType === 'faturamento' && (
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-700">
-                      <strong>Faturamento:</strong> Registre todas as informações da locação conforme orientações.
-                    </p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="date"
-                      placeholder="Data"
-                      value={formFaturamento.data}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, data: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Cliente"
-                      value={formFaturamento.cliente}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, cliente: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-4">
+                  <input
+                    type="date"
+                    value={formFaturamento.data}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, data: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nome do cliente"
+                    value={formFaturamento.cliente}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, cliente: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Mês da locação"
+                    value={formFaturamento.mesLocacao}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, mesLocacao: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
-                      placeholder="Mês Locação (ex: JAN/2025)"
-                      value={formFaturamento.mesLocacao}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, mesLocacao: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Hora"
+                      placeholder="Horário (ex: 18:00-20:00)"
                       value={formFaturamento.hora}
                       onChange={(e) => setFormFaturamento({...formFaturamento, hora: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
                     />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
                     <select
                       value={formFaturamento.tipoQuadra}
                       onChange={(e) => setFormFaturamento({...formFaturamento, tipoQuadra: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
                     >
-                      <option value="">Tipo de Quadra</option>
-                      <option value="Campo de Futebol">Campo de Futebol</option>
-                      <option value="Quadra de Futsal">Quadra de Futsal</option>
-                    </select>
-                    <select
-                      value={formFaturamento.tipoLocacao}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, tipoLocacao: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    >
-                      <option value="">Tipo de Locação</option>
-                      <option value="Mensal">Mensal</option>
-                      <option value="Avulso">Avulso</option>
+                      <option value="">Tipo de quadra</option>
+                      {quadras.map(quadra => (
+                        <option key={quadra.id} value={quadra.nome}>{quadra.nome}</option>
+                      ))}
                     </select>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Recibo de Pagamento Nº"
-                      value={formFaturamento.reciboPagamento}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, reciboPagamento: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                    <input
-                      type="date"
-                      placeholder="Data da Locação"
-                      value={formFaturamento.dataLocacao}
-                      onChange={(e) => setFormFaturamento({...formFaturamento, dataLocacao: e.target.value})}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                  </div>
-                  
+                  <select
+                    value={formFaturamento.tipoLocacao}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, tipoLocacao: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Tipo de locação</option>
+                    <option value="Avulsa">Avulsa</option>
+                    <option value="Mensal">Mensal</option>
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Anual">Anual</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Recibo de pagamento"
+                    value={formFaturamento.reciboPagamento}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, reciboPagamento: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
+                  <input
+                    type="date"
+                    placeholder="Data da locação"
+                    value={formFaturamento.dataLocacao}
+                    onChange={(e) => setFormFaturamento({...formFaturamento, dataLocacao: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  />
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Valor da Locação"
+                    placeholder="Valor total"
                     value={formFaturamento.valor}
                     onChange={(e) => setFormFaturamento({...formFaturamento, valor: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  
                   <select
                     value={formFaturamento.formaPagamento}
                     onChange={(e) => setFormFaturamento({...formFaturamento, formaPagamento: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
-                    <option value="">Forma de Pagamento</option>
-                    <option value="Pix">Pix</option>
+                    <option value="">Forma de pagamento</option>
                     <option value="Dinheiro">Dinheiro</option>
-                    <option value="Transferência">Transferência</option>
+                    <option value="PIX">PIX</option>
                     <option value="Cartão">Cartão</option>
+                    <option value="Transferência">Transferência</option>
                   </select>
-                  
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     <input
                       type="number"
                       step="0.01"
-                      placeholder="Valor Recebido (inicial)"
+                      placeholder="Valor recebido"
                       value={formFaturamento.valorRecebido}
                       onChange={(e) => setFormFaturamento({...formFaturamento, valorRecebido: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -4757,114 +6425,90 @@ const QuadraManagementSystem = () => {
                     <input
                       type="number"
                       step="0.01"
-                      placeholder="Valor Real Recebido"
+                      placeholder="Valor real recebido"
                       value={formFaturamento.valorRealRecebido}
                       onChange={(e) => setFormFaturamento({...formFaturamento, valorRealRecebido: e.target.value})}
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm"
                     />
                   </div>
-                  
                   <textarea
                     placeholder="Observações"
                     value={formFaturamento.observacoes}
                     onChange={(e) => setFormFaturamento({...formFaturamento, observacoes: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
                   />
-                  
                   <button
                     onClick={adicionarFaturamento}
                     className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 text-sm"
                   >
-                    {editingItem ? 'Atualizar Faturamento' : 'Registrar Faturamento'}
+                    {editingItem ? 'Atualizar' : 'Adicionar'}
                   </button>
                 </div>
               )}
 
               {modalType === 'recebimento' && (
                 <div className="space-y-4">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-sm text-green-700">
-                      <strong>Recebimento:</strong> Registre valores recebidos posteriormente ao faturamento.
-                    </p>
-                  </div>
-                  
                   <select
                     value={formRecebimento.faturamentoId}
                     onChange={(e) => setFormRecebimento({...formRecebimento, faturamentoId: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
-                    <option value="">Selecione o Item Financeiro</option>
-                    
-                    {/* Faturamentos com valores em aberto */}
-                    {faturamentos
-                      .filter(f => f.valorEmAberto > 0)
-                      .map(faturamento => (
+                    <option value="">Selecione o item</option>
+                    <optgroup label="Faturamentos em Aberto">
+                      {faturamentos.filter(f => (f.valorEmAberto || 0) > 0).map(faturamento => (
                         <option key={`fat_${faturamento.id}`} value={`fat_${faturamento.id}`}>
-                          [FATURAMENTO] {faturamento.cliente} - {faturamento.mesLocacao} (R$ {faturamento.valorEmAberto?.toFixed(2)} em aberto)
+                          {faturamento.cliente} - R$ {(faturamento.valorEmAberto || 0).toFixed(2)} (Faturamento)
                         </option>
                       ))}
-                    
-                    {/* Reservas com valores em aberto */}
-                    {reservas
-                      .filter(r => {
+                    </optgroup>
+                    <optgroup label="Reservas Pendentes">
+                      {reservas.filter(r => {
                         const valorTotal = r.valor || 0;
                         const valorPago = r.valorPago || 0;
-                        const valorEmAberto = Math.max(0, valorTotal - valorPago);
-                        return valorEmAberto > 0;
-                      })
-                      .map(reserva => {
+                        return Math.max(0, valorTotal - valorPago) > 0;
+                      }).map(reserva => {
                         const cliente = clientes.find(c => c.id === reserva.clienteId);
                         const quadra = quadras.find(q => q.id === reserva.quadraId);
-                        const valorTotal = reserva.valor || 0;
-                        const valorPago = reserva.valorPago || 0;
-                        const valorEmAberto = Math.max(0, valorTotal - valorPago);
-                        const statusStr = valorPago === 0 ? 'EM ABERTO' : 'PARCIAL';
-                        
+                        const valorEmAberto = Math.max(0, (reserva.valor || 0) - (reserva.valorPago || 0));
                         return (
                           <option key={`res_${reserva.id}`} value={`res_${reserva.id}`}>
-                            [RESERVA-{statusStr}] {cliente?.nome} - {quadra?.nome} {new Date(reserva.data).toLocaleDateString('pt-BR')} (R$ {valorEmAberto.toFixed(2)} em aberto)
+                            {cliente?.nome} - {quadra?.nome} - R$ {valorEmAberto.toFixed(2)} (Reserva)
                           </option>
                         );
                       })}
+                    </optgroup>
                   </select>
-                  
                   <input
                     type="date"
                     value={formRecebimento.data}
                     onChange={(e) => setFormRecebimento({...formRecebimento, data: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Valor Recebido"
+                    placeholder="Valor recebido"
                     value={formRecebimento.valor}
                     onChange={(e) => setFormRecebimento({...formRecebimento, valor: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   />
-                  
                   <select
                     value={formRecebimento.formaPagamento}
                     onChange={(e) => setFormRecebimento({...formRecebimento, formaPagamento: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
-                    <option value="">Forma de Pagamento</option>
-                    <option value="Pix">Pix</option>
+                    <option value="">Forma de pagamento</option>
                     <option value="Dinheiro">Dinheiro</option>
-                    <option value="Transferência">Transferência</option>
+                    <option value="PIX">PIX</option>
                     <option value="Cartão">Cartão</option>
+                    <option value="Transferência">Transferência</option>
                   </select>
-                  
                   <textarea
                     placeholder="Observações"
                     value={formRecebimento.observacoes}
                     onChange={(e) => setFormRecebimento({...formRecebimento, observacoes: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm h-20"
                   />
-                  
                   <button
                     onClick={adicionarRecebimento}
                     className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 text-sm"
