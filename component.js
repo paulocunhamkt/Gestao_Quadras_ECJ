@@ -391,7 +391,7 @@ var QuadraManagementSystem = () => {
       } else if (hora >= 18 && hora < 23) {
         valorPorHora = parseFloat(quadra.valorNoite) || 0;
       } else {
-        valorPorHora = parseFloat(quadra.valorHora) || 0;
+        valorPorHora = parseFloat(quadra.valorHora) || parseFloat(quadra.valorManha) || 0;
       }
     } else {
       valorPorHora = parseFloat(quadra.valorHora) || 0;
@@ -580,7 +580,7 @@ var QuadraManagementSystem = () => {
           } else if (hora >= 18 && hora < 23) {
             valorPorHora = parseFloat(quadra2.valorNoite) || 0;
           } else {
-            valorPorHora = parseFloat(quadra2.valorHora) || 0;
+            valorPorHora = parseFloat(quadra2.valorHora) || parseFloat(quadra2.valorManha) || 0;
           }
         } else {
           valorPorHora = parseFloat(quadra2.valorHora) || 0;
@@ -2935,7 +2935,7 @@ Per\xEDodo: ${dados.periodo}
       diasSemana.push(data);
     }
     return /* @__PURE__ */ React.createElement("div", { key: quadra.id, className: "bg-white rounded-lg shadow overflow-hidden" }, /* @__PURE__ */ React.createElement("div", { className: "bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white" }, /* @__PURE__ */ React.createElement("div", { className: "flex items-center justify-between" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "text-lg font-semibold" }, quadra.nome), /* @__PURE__ */ React.createElement("p", { className: "text-blue-100 text-sm" }, quadra.modalidade)), /* @__PURE__ */ React.createElement("div", { className: "text-right" }, /* @__PURE__ */ React.createElement("p", { className: "text-blue-100 text-sm" }, "Valores:"), quadra.usarTabelaDiferenciada ? /* @__PURE__ */ React.createElement("div", { className: "text-sm" }, /* @__PURE__ */ React.createElement("p", { className: "text-orange-200" }, "\u{1F305} R$ ", quadra.valorManha, "/h"), /* @__PURE__ */ React.createElement("p", { className: "text-blue-200" }, "\u{1F319} R$ ", quadra.valorNoite, "/h")) : /* @__PURE__ */ React.createElement("p", { className: "text-xl font-bold" }, "R$ ", quadra.valorHora, "/h")))), /* @__PURE__ */ React.createElement("div", { className: "overflow-x-auto" }, /* @__PURE__ */ React.createElement("div", { className: "min-w-full" }, /* @__PURE__ */ React.createElement("div", { className: "grid grid-cols-8 border-b border-gray-200 bg-gray-50" }, /* @__PURE__ */ React.createElement("div", { className: "p-3 text-sm font-medium text-gray-700 border-r border-gray-200" }, "Hor\xE1rio"), diasSemana.map((data, index) => /* @__PURE__ */ React.createElement("div", { key: index, className: "p-3 text-center border-r border-gray-200 last:border-r-0" }, /* @__PURE__ */ React.createElement("div", { className: "text-sm font-medium text-gray-900" }, data.toLocaleDateString("pt-BR", { weekday: "short" }).toUpperCase()), /* @__PURE__ */ React.createElement("div", { className: "text-xs text-gray-600" }, data.getDate().toString().padStart(2, "0"), "/", (data.getMonth() + 1).toString().padStart(2, "0"))))), horarios.map((horario, horarioIndex) => /* @__PURE__ */ React.createElement("div", { key: horario, className: `grid grid-cols-8 ${horarioIndex % 2 === 0 ? "bg-white" : "bg-gray-25"}` }, /* @__PURE__ */ React.createElement("div", { className: "p-3 text-sm font-medium text-gray-700 border-r border-b border-gray-200 bg-gray-50" }, horario), diasSemana.map((data, diaIndex) => {
-      const dataStr = data.toISOString().split("T")[0];
+      const dataStr = data.getFullYear() + "-" + String(data.getMonth() + 1).padStart(2, "0") + "-" + String(data.getDate()).padStart(2, "0");
       const horaInicio = horario;
       const horaFim = `${(parseInt(horario.split(":")[0]) + 1).toString().padStart(2, "0")}:00`;
       const reservasNoSlot = reservas.filter((r) => {
@@ -2946,8 +2946,12 @@ Per\xEDodo: ${dados.periodo}
       });
       const reserva = reservasNoSlot[0];
       const isOcupado = reservasNoSlot.length > 0;
-      const isHoje = dataStr === (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const isPast = data < (/* @__PURE__ */ new Date()).setHours(0, 0, 0, 0);
+      const hoje2 = /* @__PURE__ */ new Date();
+      const hojeStr = hoje2.getFullYear() + "-" + String(hoje2.getMonth() + 1).padStart(2, "0") + "-" + String(hoje2.getDate()).padStart(2, "0");
+      const isHoje = dataStr === hojeStr;
+      const dataAtual = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+      const hojeData = new Date(hoje2.getFullYear(), hoje2.getMonth(), hoje2.getDate());
+      const isPast = dataAtual < hojeData;
       return /* @__PURE__ */ React.createElement(
         "div",
         {
@@ -2967,10 +2971,11 @@ Per\xEDodo: ${dados.periodo}
                 valorPorHora = parseFloat(quadra.valorHora) || 0;
               }
               const valorCalculado = horas * valorPorHora;
+              const dataCorreta = data.getFullYear() + "-" + String(data.getMonth() + 1).padStart(2, "0") + "-" + String(data.getDate()).padStart(2, "0");
               setFormReserva({
                 ...formReserva,
                 quadraId: quadra.id.toString(),
-                data: dataStr,
+                data: dataCorreta,
                 horaInicio,
                 horaFim,
                 tipoReserva: "avulsa",

@@ -96,11 +96,23 @@
       "tamanho": 1783,
       "registros": 10,
       "observacoes": "Backup manual executado com sucesso"
+    },
+    {
+      "id": 1753741043597,
+      "data": "28/07/2025",
+      "hora": "19:17:23",
+      "timestamp": "2025-07-28T22:17:23.597Z",
+      "tipo": "manual",
+      "usuario": "Administrador",
+      "status": "Sucesso",
+      "tamanho": 1783,
+      "registros": 10,
+      "observacoes": "Backup manual executado com sucesso"
     }
   ],
   "faturamentos": [],
   "recebimentos": [],
-  "ultimoBackup": "2025-07-28T19:33:59.618Z",
+  "ultimoBackup": "2025-07-28T22:17:23.597Z",
   "usuarioLogado": null,
   "isAuthenticated": false,
   "configuracaoBackup": {

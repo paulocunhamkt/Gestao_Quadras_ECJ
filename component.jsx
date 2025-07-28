@@ -438,19 +438,23 @@ const QuadraManagementSystem = () => {
     const minutos = (horaFim - horaInicio) / (1000 * 60);
     const horas = minutos / 60;
     
-    // Calcular valor por sessão baseado no período (SEM DESCONTO)
+    // Calcular valor por sessão baseado no período (CORRIGIDO PARA USAR VALORES CORRETOS)
     let valorPorHora;
     if (quadra.usarTabelaDiferenciada) {
       // Usar a função corrigida para calcular valor por horário
       const hora = parseInt(formReserva.horaInicio.split(':')[0]);
       if (hora >= 6 && hora < 18) {
+        // Manhã/Tarde: usar valorManha (R$ 10,00 no exemplo)
         valorPorHora = parseFloat(quadra.valorManha) || 0;
       } else if (hora >= 18 && hora < 23) {
+        // Noite: usar valorNoite
         valorPorHora = parseFloat(quadra.valorNoite) || 0;
       } else {
-        valorPorHora = parseFloat(quadra.valorHora) || 0;
+        // Horário fora do padrão: usar valor padrão
+        valorPorHora = parseFloat(quadra.valorHora) || parseFloat(quadra.valorManha) || 0;
       }
     } else {
+      // Tabela única: usar valorHora
       valorPorHora = parseFloat(quadra.valorHora) || 0;
     }
     
@@ -706,27 +710,33 @@ const QuadraManagementSystem = () => {
         const valorMensal = calcularValorMensal();
         const valorParcela = calcularParcelas(valorMensal, formReserva.numeroParcelas);
         
-        // Calcular valor correto por sessão individual
+        // Calcular valor correto por sessão individual (VALORES EXATOS)
         const quadra = quadras.find(q => q.id === parseInt(formReserva.quadraId));
         const horaInicio = new Date(`2000-01-01T${formReserva.horaInicio}`);
         const horaFim = new Date(`2000-01-01T${formReserva.horaFim}`);
         const minutos = (horaFim - horaInicio) / (1000 * 60);
         const horas = minutos / 60;
         
+        // Calcular valor por hora baseado no período (USANDO VALORES REAIS DA QUADRA)
         let valorPorHora;
         if (quadra.usarTabelaDiferenciada) {
           const hora = parseInt(formReserva.horaInicio.split(':')[0]);
           if (hora >= 6 && hora < 18) {
+            // Manhã/Tarde: usar valorManha (ex: R$ 10,00)
             valorPorHora = parseFloat(quadra.valorManha) || 0;
           } else if (hora >= 18 && hora < 23) {
+            // Noite: usar valorNoite
             valorPorHora = parseFloat(quadra.valorNoite) || 0;
           } else {
-            valorPorHora = parseFloat(quadra.valorHora) || 0;
+            // Horário fora do padrão: usar valor padrão
+            valorPorHora = parseFloat(quadra.valorHora) || parseFloat(quadra.valorManha) || 0;
           }
         } else {
+          // Tabela única: usar valorHora
           valorPorHora = parseFloat(quadra.valorHora) || 0;
         }
         
+        // Valor por sessão individual (ex: 2h × R$ 10,00 = R$ 20,00)
         const valorPorSessao = horas * valorPorHora;
         
         const reservaMensalId = `mensal_${Date.now()}`;
@@ -4691,7 +4701,10 @@ const QuadraManagementSystem = () => {
                               
                               {/* Colunas dos Dias */}
                               {diasSemana.map((data, diaIndex) => {
-                                const dataStr = data.toISOString().split('T')[0];
+                                // Corrigir formato da data para evitar problema de fuso horário
+                                const dataStr = data.getFullYear() + '-' + 
+                                  String(data.getMonth() + 1).padStart(2, '0') + '-' + 
+                                  String(data.getDate()).padStart(2, '0');
                                 const horaInicio = horario;
                                 const horaFim = `${(parseInt(horario.split(':')[0]) + 1).toString().padStart(2, '0')}:00`;
                                 
@@ -4708,8 +4721,18 @@ const QuadraManagementSystem = () => {
 
                                 const reserva = reservasNoSlot[0]; // Pegar a primeira (deve ser única)
                                 const isOcupado = reservasNoSlot.length > 0;
-                                const isHoje = dataStr === new Date().toISOString().split('T')[0];
-                                const isPast = data < new Date().setHours(0, 0, 0, 0);
+                                
+                                // Comparação de datas corrigida
+                                const hoje = new Date();
+                                const hojeStr = hoje.getFullYear() + '-' + 
+                                  String(hoje.getMonth() + 1).padStart(2, '0') + '-' + 
+                                  String(hoje.getDate()).padStart(2, '0');
+                                const isHoje = dataStr === hojeStr;
+                                
+                                // Verificar se é data passada usando apenas ano, mês e dia
+                                const dataAtual = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+                                const hojeData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+                                const isPast = dataAtual < hojeData;
                                 
                                 return (
                                   <div 
@@ -4746,10 +4769,15 @@ const QuadraManagementSystem = () => {
                                         
                                         const valorCalculado = horas * valorPorHora;
                                         
+                                        // Corrigir formato da data para evitar problema de fuso horário
+                                        const dataCorreta = data.getFullYear() + '-' + 
+                                          String(data.getMonth() + 1).padStart(2, '0') + '-' + 
+                                          String(data.getDate()).padStart(2, '0');
+                                        
                                         setFormReserva({
                                           ...formReserva,
                                           quadraId: quadra.id.toString(),
-                                          data: dataStr,
+                                          data: dataCorreta,
                                           horaInicio: horaInicio,
                                           horaFim: horaFim,
                                           tipoReserva: 'avulsa',
